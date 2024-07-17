@@ -8,6 +8,7 @@ import pygame
 import sys
 from os import path
 import math
+import time
 
 # Actions the Robot is capable of performing i.e. go in a certain direction
 class RobotAction(Enum):
@@ -15,11 +16,12 @@ class RobotAction(Enum):
     FORWARD=1
     RIGHT=2
     BACKWARD=3
+    INTERACT=4
 
 class WarehouseRobot:
 
     # Initialize the grid size. Pass in an integer seed to make randomness (Targets) repeatable.
-    def __init__(self, grid_rows=4, grid_cols=5, fps=60):
+    def __init__(self, grid_rows=10, grid_cols=10, fps=1):
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
         self.reset()
@@ -59,17 +61,20 @@ class WarehouseRobot:
         file_name = path.join(path.dirname(__file__), "sprites/robot_sprite.png")
         img = pygame.image.load(file_name)
         self.robot_img= pygame.transform.scale(img, self.cell_size)
-        # self.robot_img = pygame.transform.rotate(self.robot_img, self.robot_facing_angle * 57.295800025114)
 
     def reset(self, seed=None):
-        # Initialize Robot's starting position
+        # Initialize Robot's starting position and attributes
         self.robot_pos = [0,0]
         self.robot_facing_angle = 0
+        self.medicine_amt = 0
+
+        # For generating map elements
+        self.tolerence = 10
         
         # Define number of tiles
         self.num_targets = 1
-        self.num_medicine = 0
-        self.num_walls = 3
+        self.num_medicine = 2
+        self.num_walls = 50
 
         # Set random target position
         random.seed(seed)
@@ -84,26 +89,10 @@ class WarehouseRobot:
             self.target_pos = potential_pos
             placements_left = 0
 
-        # Generate medicine positons
-        random.seed(seed)
-        self.medicine_pos = []
-        placements_left = self.num_medicine
-        while placements_left > 0:
-            potential_pos = [
-                random.randint(0, self.grid_cols-1),
-                random.randint(0, self.grid_rows-1)
-            ]
-            if potential_pos in self.medicine_pos:
-                continue
-            if potential_pos == self.target_pos:
-                continue
-            self.medicine_pos.append(potential_pos)
-            placements_left -= 1
-
         # Generate wall positons
         random.seed(seed)
         self.wall_pos = []
-        placements_left = 3
+        placements_left = self.num_walls
         while placements_left > 0:
             potential_pos = [
                 random.randint(0, self.grid_cols-1),
@@ -116,9 +105,39 @@ class WarehouseRobot:
             if potential_pos == self.target_pos:
                 continue
             self.wall_pos.append(potential_pos)
+            if not self.dfs(self.robot_pos, self.target_pos):
+                self.wall_pos.remove(potential_pos)
+                continue
             placements_left -= 1
 
-    def is_valid_pos(self, x, y, dx, dy, max_x, max_y, walls):
+        # Generate medicine positons
+        random.seed(seed)
+        tolerance = self.tolerence  # How many times we attempt to place medicine before knocking down a wall
+        self.medicine_pos = []
+        placements_left = self.num_medicine
+        while placements_left > 0:
+            potential_pos = [
+                random.randint(0, self.grid_cols-1),
+                random.randint(0, self.grid_rows-1)
+            ]
+            if tolerance < 0:
+                self.wall_pos.remove(self.wall_pos[random.randint(0,len(self.wall_pos)-1)])
+                tolerance = self.tolerence
+            if potential_pos == self.robot_pos:
+                continue
+            if potential_pos in self.medicine_pos:
+                continue
+            if potential_pos in self.wall_pos:
+                continue
+            if potential_pos == self.target_pos:
+                continue
+            if not self.dfs(potential_pos, self.target_pos):
+                tolerance -= 1
+                continue
+            self.medicine_pos.append(potential_pos)
+            placements_left -= 1
+
+    def is_valid_player_pos(self, x, y, dx, dy, max_x, max_y, walls):
         valid_x = (
             0 < dx < max_x and
             [int(dx+.5),int(y+.5)] not in walls
@@ -128,38 +147,85 @@ class WarehouseRobot:
             [int(x+.5),int(dy+.5)] not in walls
         )
         return (valid_x, valid_y)
+    
+    # DFS to check for a valid path
+    def dfs(self, position, destination):
+        discovered = []
+        frontier = []
+        frontier.append(position)
+        while frontier:
+            position = frontier[len(frontier)-1]
+            frontier.pop()
+            if position not in discovered:
+                discovered.append(position)
+                directions = [(1,0),(0,1),(-1,0),(0,-1)]
+                for x, y in directions:
+                    x_new = position[0] + x
+                    y_new = position[1] + y
+                    if x_new < 0 or x_new >= self.grid_cols or y_new < 0 or y_new >= self.grid_rows:
+                        continue
+                    if [x_new, y_new] == destination:
+                        return True
+                    if [x_new, y_new] not in self.wall_pos:
+                        frontier.append([x_new,y_new])
+        return False
+
+    # visulize DFS
+    def vis_dfs(self, position, destination):
+        discovered = []
+        frontier = []
+        frontier.append(position)
+        while frontier:
+            position = frontier[len(frontier)-1]
+            frontier.pop()
+            if position not in discovered:
+                discovered.append(position)
+                directions = [(1,0),(0,1),(-1,0),(0,-1)]
+                for x, y in directions:
+                    x_new = position[0] + x
+                    y_new = position[1] + y
+                    if x_new < 0 or x_new >= self.grid_cols or y_new < 0 or y_new >= self.grid_rows:
+                        continue
+                    if [x_new, y_new] == destination:
+                        return (discovered, frontier)
+                    if [x_new, y_new] not in self.wall_pos:
+                        frontier.append([x_new,y_new])
+        return (discovered, frontier)
 
     def perform_action(self, robot_action:RobotAction) -> bool:
         self.last_action = robot_action
 
-        # Move Robot to the next cell
         # Rotate left
         if robot_action == RobotAction.LEFT:
             self.robot_facing_angle -= self.robot_turning_speed
         # Rotate right
         elif robot_action == RobotAction.RIGHT:
             self.robot_facing_angle += self.robot_turning_speed
-
         # Move forward
         elif robot_action == RobotAction.FORWARD:
             desired_x = self.robot_pos[0] + math.cos(self.robot_facing_angle)*self.robot_speed
             desired_y = self.robot_pos[1] + math.sin(self.robot_facing_angle)*self.robot_speed
-            if self.is_valid_pos(self.robot_pos[0], self.robot_pos[1], desired_x, desired_y, self.grid_cols-1, self.grid_rows-1, self.wall_pos)[0]:
+            if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], desired_x, desired_y, self.grid_cols-1, self.grid_rows-1, self.wall_pos)[0]:
                 self.robot_pos[0] = desired_x
-            if self.is_valid_pos(self.robot_pos[0], self.robot_pos[1], desired_x, desired_y, self.grid_cols-1, self.grid_rows-1, self.wall_pos)[1]:
+            if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], desired_x, desired_y, self.grid_cols-1, self.grid_rows-1, self.wall_pos)[1]:
                 self.robot_pos[1] = desired_y
         # Move backward
         elif robot_action == RobotAction.BACKWARD:
             desired_x = self.robot_pos[0] - math.cos(self.robot_facing_angle)*self.robot_speed
             desired_y = self.robot_pos[1] - math.sin(self.robot_facing_angle)*self.robot_speed
-            if 0 < desired_x < self.grid_cols - 1:
+            if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], desired_x, desired_y, self.grid_cols-1, self.grid_rows-1, self.wall_pos)[0]:
                 self.robot_pos[0] = desired_x
-            if 0 < desired_y < self.grid_rows - 1:
+            if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], desired_x, desired_y, self.grid_cols-1, self.grid_rows-1, self.wall_pos)[1]:
                 self.robot_pos[1] = desired_y
-
+        elif robot_action == RobotAction.INTERACT:
+            robot_grid_pos = [int(self.robot_pos[0]+.5), int(self.robot_pos[1]+.5)]
+            if robot_grid_pos in self.medicine_pos:
+                self.medicine_amt += 1
+                self.medicine_pos.remove(robot_grid_pos)
+            elif robot_grid_pos == self.target_pos:
+                self.medicine_amt = 0       # Do something else (to be implemented later)
         # Clamp facing angle to 0 - 6.2831
         self.robot_facing_angle %= math.pi*2
-        print([int(self.robot_pos[0]+.5), int(self.robot_pos[1]+.5)], self.target_pos)
 
         return [int(self.robot_pos[0]+.5), int(self.robot_pos[1]+.5)] == self.target_pos
 
@@ -188,23 +254,28 @@ class WarehouseRobot:
 
         # Draw target
         pygame.draw.rect(self.window_surface, "blue", pygame.Rect(self.target_pos[0]*self.cell_size[0], self.target_pos[1]*self.cell_size[1], self.cell_size[0], self.cell_size[1]))
-        pygame.draw.circle(self.window_surface, (150,150,255), (self.target_pos[0]*self.cell_size[0]+self.cell_size[0]/2,self.target_pos[1]*self.cell_size[1]+self.cell_size[1]/2), (min(self.cell_size[0], self.cell_size[1]))/4)
+        pygame.draw.rect(self.window_surface, (150,150,255), pygame.Rect(self.target_pos[0]*self.cell_size[0]+self.grid_line_width, self.target_pos[1]*self.cell_size[1]+self.grid_line_width, self.cell_size[0]-self.grid_line_width*2, self.cell_size[1]-self.grid_line_width*2))
 
-        # Draw grid (unused)
-        # for i in range(self.window_size[0] // self.cell_size[0] + 1):
-        #     pygame.draw.line(self.window_surface, "black", (i*self.cell_size[0], 0), (i*self.cell_size[0], self.window_size[1] - self.action_info_height), width=self.grid_line_width)    #Vertical Lines
-        # for i in range(self.window_size[1] // self.cell_size[1] + 1):
-        #     pygame.draw.line(self.window_surface, "black", (0, i*self.cell_size[1]), (self.window_size[0], i*self.cell_size[1]), width=self.grid_line_width)    #Horizonal Lines
+        # Draw medicine
+        for medicine in (self.medicine_pos):
+            pygame.draw.rect(self.window_surface, (0,150,0), pygame.Rect(medicine[0]*self.cell_size[0], medicine[1]*self.cell_size[1], self.cell_size[0], self.cell_size[1]))
+            pygame.draw.circle(self.window_surface, (150,255,150), (medicine[0]*self.cell_size[0]+self.cell_size[0]/2,medicine[1]*self.cell_size[1]+self.cell_size[1]/2), (min(self.cell_size[0], self.cell_size[1]))/4)
 
         # Draw walls
         for wall in (self.wall_pos):
             pygame.draw.rect(self.window_surface, "black", pygame.Rect(wall[0]*self.cell_size[0], wall[1]*self.cell_size[1], self.cell_size[0], self.cell_size[1]))
 
+        # Draw pathfinding (for showcasing purposes -- not recommended on higher framerates)
+        # for square in self.vis_dfs(self.robot_pos, self.target_pos)[1]:
+        #     pygame.draw.rect(self.window_surface, (255,100,100), pygame.Rect(square[0]*self.cell_size[0], square[1]*self.cell_size[1], self.cell_size[0], self.cell_size[1]))
+        # for square in self.vis_dfs(self.robot_pos, self.target_pos)[0]:
+        #     pygame.draw.rect(self.window_surface, (255,75,75), pygame.Rect(square[0]*self.cell_size[0], square[1]*self.cell_size[1], self.cell_size[0], self.cell_size[1]))
+
         # Draw grid dots
         for i in range((self.window_size[1] - self.action_info_height) // self.cell_size[1] + 1):
             for j in range(self.window_size[0] // self.cell_size[0] + 1): 
                 pygame.draw.circle(self.window_surface, "grey", (j*self.cell_size[0], i*self.cell_size[1]), self.grid_line_width / 2 )
-        
+
         # Draw player
         player_center = (self.robot_pos[0]*self.cell_size[0]+self.cell_size[0]/2,self.robot_pos[1]*self.cell_size[1]+self.cell_size[1]/2)
         pygame.draw.circle(self.window_surface, "red", player_center, min(self.cell_size[0], self.cell_size[1])/2)
@@ -255,6 +326,7 @@ if __name__=="__main__":
             warehouseRobot.perform_action(list(RobotAction)[2])
         if keys[pygame.K_s]:
             warehouseRobot.perform_action(list(RobotAction)[3])
-
+        if keys[pygame.K_SPACE]:
+            warehouseRobot.perform_action(list(RobotAction)[4])
 
         warehouseRobot.render()

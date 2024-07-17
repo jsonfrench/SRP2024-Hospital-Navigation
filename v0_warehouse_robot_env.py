@@ -45,23 +45,31 @@ class WarehouseRobotEnv(gym.Env):
         # Gym requires defining the observation space. The observation space consists of the robot's and target's set of possible positions.
         # The observation space is used to validate the observation returned by reset() and step().
         low = np.array([
+                0.0,    # robot facing angle
                 0.0,    # robot row position 
                 0.0,    # robot col position
-                0.0,    # robot facing angle
+                0.0,    # walls row position 
+                0.0,    # walls col position
+                0.0,    # medicine row position 
+                0.0,    # medicine col position
                 0.0,    # target row position
                 0.0     # target col position
                 ])
 
         high = np.array([
+                math.pi * 2,    # robot facing angle
                 self.grid_rows, # robot row position 
                 self.grid_cols, # robot col position
-                math.pi * 2,    # robot facing angle
+                self.grid_rows, # walls row position 
+                self.grid_cols, # walls col position
+                self.grid_rows, # medicine row position 
+                self.grid_cols, # medicine col position
                 self.grid_rows, # target row position
                 self.grid_cols  # target col position
                 ])
         
         # Use a 1D vector: [robot_row_pos, robot_col_pos, robot_facing_angle, target_row_pos, target_col_pos]
-        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(5,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(9,), dtype=np.float32)
 
     # Gym required function (and parameters) to reset the environment
     def reset(self, seed=None, options=None):
@@ -74,8 +82,13 @@ class WarehouseRobotEnv(gym.Env):
         self.warehouse_robot.reset(seed=seed)
 
         # Construct the observation state:
-        # [robot_row_pos, robot_col_pos, robot_facing_angle, target_row_pos, target_col_pos]
-        obs = np.concatenate((self.warehouse_robot.robot_pos, [self.warehouse_robot.robot_facing_angle], self.warehouse_robot.target_pos))
+        obs = np.concatenate((
+            np.array([[self.warehouse_robot.robot_facing_angle, 0.0]]), 
+            np.array([self.warehouse_robot.robot_pos]), 
+            np.array(self.warehouse_robot.wall_pos), 
+            np.array(self.warehouse_robot.medicine_pos), 
+            np.array([self.warehouse_robot.target_pos])
+            ))
         
         # Additional info to return. For debugging or whatever.
         info = {}
@@ -116,8 +129,13 @@ class WarehouseRobotEnv(gym.Env):
         reward = self.reward
 
         # Construct the observation state: 
-        # [robot_row_pos, robot_col_pos, robot_facing angle, target_row_pos, target_col_pos]
-        obs = np.concatenate((self.warehouse_robot.robot_pos, [self.warehouse_robot.robot_facing_angle], self.warehouse_robot.target_pos))
+        obs = np.concatenate((
+            np.array([[self.warehouse_robot.robot_facing_angle, 0.0]]), 
+            np.array([self.warehouse_robot.robot_pos]), 
+            np.array(self.warehouse_robot.wall_pos), 
+            np.array(self.warehouse_robot.medicine_pos if len(self.warehouse_robot.medicine_pos) > 0 else np.empty((0,2))), # <- thank you chatGPT for this clever solution
+            np.array([self.warehouse_robot.target_pos])
+            ))
 
         # Additional info to return. For debugging or whatever.
         info = {}
@@ -163,6 +181,9 @@ if __name__=="__main__":
             obs, reward, terminated, truncated, _ = env.step(man_action)
         if keys[pygame.K_s]:
             man_action = 3
+            obs, reward, terminated, truncated, _ = env.step(man_action)
+        if keys[pygame.K_SPACE]:
+            man_action = 4
             obs, reward, terminated, truncated, _ = env.step(man_action)
 
         if(terminated):
