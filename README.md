@@ -11,5 +11,8 @@ This project is meant to be an improved upon version of [AnnaArdelli's](https://
 A simple DFS algorithm is seen here verifying a path from the player to the drop off point.
 ![DFS_example](https://github.com/jsonfrench/SRP2024-Hospital-Navigation/blob/master/images/dfs%20example%207.png)
 
+The code was modified to give the user control of the agent's actions allowing for faster and easier debugging. It also makes for a fun game!
+![navigation_demo](https://github.com/jsonfrench/SRP2024-Hospital-Navigation/blob/master/images/navigation%20demo.gif)
+
 Tutorials and reference code that made this possible: [johnnycode8](https://github.com/johnnycode8).
 Additional references from [Gymnasium](https://github.com/Farama-Foundation/Gymnasium/tree/main).

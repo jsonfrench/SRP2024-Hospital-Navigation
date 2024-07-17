@@ -21,7 +21,7 @@ class RobotAction(Enum):
 class WarehouseRobot:
 
     # Initialize the grid size. Pass in an integer seed to make randomness (Targets) repeatable.
-    def __init__(self, grid_rows=10, grid_cols=10, fps=1):
+    def __init__(self, grid_rows=5, grid_cols=5, fps=60):
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
         self.reset()
@@ -74,7 +74,7 @@ class WarehouseRobot:
         # Define number of tiles
         self.num_targets = 1
         self.num_medicine = 2
-        self.num_walls = 50
+        self.num_walls = 5
 
         # Set random target position
         random.seed(seed)
@@ -227,7 +227,7 @@ class WarehouseRobot:
         # Clamp facing angle to 0 - 6.2831
         self.robot_facing_angle %= math.pi*2
 
-        return [int(self.robot_pos[0]+.5), int(self.robot_pos[1]+.5)] == self.target_pos
+        return (self.medicine_pos, self.medicine_amt)
 
     def render(self):
 

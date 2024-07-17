@@ -107,7 +107,7 @@ class WarehouseRobotEnv(gym.Env):
     # Gym required function (and parameters) to perform an action
     def step(self, action):
         # Perform action
-        target_reached = self.warehouse_robot.perform_action(wr.RobotAction(action))
+        medicine_pos, medicine_amt = self.warehouse_robot.perform_action(wr.RobotAction(action))
 
         # Calculate score based on distance to target
         self.final_distance_to_target = math.sqrt(math.pow(self.warehouse_robot.robot_pos[0] - self.warehouse_robot.target_pos[1], 2) + math.pow(self.warehouse_robot.robot_pos[1] - self.warehouse_robot.target_pos[0], 2))
@@ -117,7 +117,7 @@ class WarehouseRobotEnv(gym.Env):
         terminated = False
         truncated = False
 
-        if target_reached:
+        if not medicine_pos and medicine_amt < 1:
             terminated = True
             self.reward += 100
         elif self.num_steps > 500:
