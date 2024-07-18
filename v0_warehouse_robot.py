@@ -9,6 +9,7 @@ import sys
 from os import path
 import math
 import time
+import constants as const
 
 # Actions the Robot is capable of performing i.e. go in a certain direction
 class RobotAction(Enum):
@@ -21,7 +22,7 @@ class RobotAction(Enum):
 class WarehouseRobot:
 
     # Initialize the grid size. Pass in an integer seed to make randomness (Targets) repeatable.
-    def __init__(self, grid_rows=5, grid_cols=5, fps=60):
+    def __init__(self, grid_rows=const.GRID_ROWS, grid_cols=const.GRID_COLS, fps=const.FPS):
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
         self.reset()
@@ -42,14 +43,15 @@ class WarehouseRobot:
         self.action_info_height = self.action_font.get_height()
 
         # For rendering
-        self.cell_height = 64
-        self.cell_width = 64
+        self.cell_height = const.CELL_HEIGHT
+        self.cell_width = const.CELL_WIDTH
         self.cell_size = (self.cell_width, self.cell_height) 
-        self.grid_line_width = 5   
+        self.grid_line_width = int(min(self.cell_width, self.cell_height) * 0.07815)
 
         # For controlling robot's speed
-        self.robot_speed = 0.1  
-        self.robot_turning_speed = 0.1
+        delta_time = const.BASE_FPS/self.fps    # Standardize movement to how it acts in 60fps. Breaks collision for low framerates.
+        self.robot_speed = const.ROBOT_SPEED * delta_time
+        self.robot_turning_speed = const.ROBOT_TURNING_SPEED * delta_time
 
         # Define game window size (width, height)
         self.window_size = (self.cell_size[0] * self.grid_cols, self.cell_size[1] * self.grid_rows + self.action_info_height)
@@ -58,23 +60,32 @@ class WarehouseRobot:
         self.window_surface = pygame.display.set_mode(self.window_size) 
 
         # Initialize and resize sprites
-        file_name = path.join(path.dirname(__file__), "sprites/robot_sprite.png")
+        file_name = path.join(path.dirname(__file__), const.ROBOT_SPRITE)
         img = pygame.image.load(file_name)
-        self.robot_img= pygame.transform.scale(img, self.cell_size)
+        self.robot_img = pygame.transform.scale(img, self.cell_size)
 
     def reset(self, seed=None):
         # Initialize Robot's starting position and attributes
-        self.robot_pos = [0,0]
-        self.robot_facing_angle = 0
-        self.medicine_amt = 0
+        self.robot_pos = [
+                random.randint(0, self.grid_cols-1),
+                random.randint(0, self.grid_rows-1)
+            ]
+        self.robot_facing_angle = random.uniform(0.0, math.pi*2)
+        self.medicine_amt = 0   # <- hard coded constant because robot should never start with more than 0 medicine
 
         # For generating map elements
-        self.tolerence = 10
+        self.tolerance = const.TOLERANCE
         
         # Define number of tiles
-        self.num_targets = 1
-        self.num_medicine = 2
-        self.num_walls = 5
+        self.num_targets = const.NUM_TARGETS
+        self.num_medicine = const.NUM_MEDICINE
+        self.num_walls = const.NUM_WALLS
+
+        if not self.num_medicine:
+            self.medicine_amt = 1   # Start the robot with medicine to deliver if none are generated
+
+        if self.num_targets + self.num_medicine + self.num_walls + 1 > self.grid_rows*self.grid_cols:   # Sum all tiles plus an extra space for the player
+            raise ValueError(f"Number of tiles ({self.num_targets + self.num_medicine + self.num_walls + 1}) exceeds number of grid spaces ({self.grid_rows*self.grid_cols})")
 
         # Set random target position
         random.seed(seed)
@@ -87,10 +98,11 @@ class WarehouseRobot:
             if potential_pos == self.robot_pos:
                 continue
             self.target_pos = potential_pos
-            placements_left = 0
+            placements_left -= 1
 
         # Generate wall positons
         random.seed(seed)
+        tolerance = self.tolerance
         self.wall_pos = []
         placements_left = self.num_walls
         while placements_left > 0:
@@ -98,6 +110,9 @@ class WarehouseRobot:
                 random.randint(0, self.grid_cols-1),
                 random.randint(0, self.grid_rows-1)
             ]
+            if tolerance < 0:
+                self.wall_pos.remove(self.wall_pos[random.randint(0,len(self.wall_pos)-1)])
+                tolerance = self.tolerance
             if potential_pos == self.robot_pos:
                 continue
             if potential_pos in self.wall_pos:
@@ -107,12 +122,13 @@ class WarehouseRobot:
             self.wall_pos.append(potential_pos)
             if not self.dfs(self.robot_pos, self.target_pos):
                 self.wall_pos.remove(potential_pos)
+                tolerance -= 1
                 continue
             placements_left -= 1
 
         # Generate medicine positons
         random.seed(seed)
-        tolerance = self.tolerence  # How many times we attempt to place medicine before knocking down a wall
+        tolerance = self.tolerance  # How many times we attempt to place medicine before knocking down a wall
         self.medicine_pos = []
         placements_left = self.num_medicine
         while placements_left > 0:
@@ -122,7 +138,7 @@ class WarehouseRobot:
             ]
             if tolerance < 0:
                 self.wall_pos.remove(self.wall_pos[random.randint(0,len(self.wall_pos)-1)])
-                tolerance = self.tolerence
+                tolerance = self.tolerance
             if potential_pos == self.robot_pos:
                 continue
             if potential_pos in self.medicine_pos:
@@ -255,6 +271,7 @@ class WarehouseRobot:
         # Draw target
         pygame.draw.rect(self.window_surface, "blue", pygame.Rect(self.target_pos[0]*self.cell_size[0], self.target_pos[1]*self.cell_size[1], self.cell_size[0], self.cell_size[1]))
         pygame.draw.rect(self.window_surface, (150,150,255), pygame.Rect(self.target_pos[0]*self.cell_size[0]+self.grid_line_width, self.target_pos[1]*self.cell_size[1]+self.grid_line_width, self.cell_size[0]-self.grid_line_width*2, self.cell_size[1]-self.grid_line_width*2))
+
 
         # Draw medicine
         for medicine in (self.medicine_pos):

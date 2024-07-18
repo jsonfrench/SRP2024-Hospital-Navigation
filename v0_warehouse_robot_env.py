@@ -11,6 +11,7 @@ import v0_warehouse_robot as wr
 import numpy as np
 import math
 import pygame
+import constants as const
 
 # Define the environment ID
 env_id = 'warehouse-robot-v0'   # call it whatever you want
@@ -27,9 +28,9 @@ class WarehouseRobotEnv(gym.Env):
     # metadata is a required attribute
     # render_modes in our environment is either None or 'human'.
     # render_fps is not used in our env, but we are require to declare a non-zero value.
-    metadata = {"render_modes": ["human"], 'render_fps': 60}
+    metadata = {"render_modes": ["human"], 'render_fps': const.FPS}
 
-    def __init__(self, grid_rows=4, grid_cols=5, render_mode=None):
+    def __init__(self, grid_rows=const.GRID_ROWS, grid_cols=const.GRID_COLS, render_mode=None):
 
         self.grid_rows=grid_rows
         self.grid_cols=grid_cols
@@ -109,10 +110,6 @@ class WarehouseRobotEnv(gym.Env):
         # Perform action
         medicine_pos, medicine_amt = self.warehouse_robot.perform_action(wr.RobotAction(action))
 
-        # Calculate score based on distance to target
-        self.final_distance_to_target = math.sqrt(math.pow(self.warehouse_robot.robot_pos[0] - self.warehouse_robot.target_pos[1], 2) + math.pow(self.warehouse_robot.robot_pos[1] - self.warehouse_robot.target_pos[0], 2))
-        score = (self.initial_distance_to_target - self.final_distance_to_target) / self.initial_distance_to_target
-
         # Determine reward and termination
         terminated = False
         truncated = False
@@ -120,9 +117,8 @@ class WarehouseRobotEnv(gym.Env):
         if not medicine_pos and medicine_amt < 1:
             terminated = True
             self.reward += 100
-        elif self.num_steps > 500:
+        elif self.num_steps > 1000:
             truncated = True
-            self.reward += 100 * score
         else:
             self.reward += -0.1
         
@@ -133,7 +129,7 @@ class WarehouseRobotEnv(gym.Env):
             np.array([[self.warehouse_robot.robot_facing_angle, 0.0]]), 
             np.array([self.warehouse_robot.robot_pos]), 
             np.array(self.warehouse_robot.wall_pos), 
-            np.array(self.warehouse_robot.medicine_pos if len(self.warehouse_robot.medicine_pos) > 0 else np.empty((0,2))), # <- thank you chatGPT for this clever solution
+            np.array(self.warehouse_robot.medicine_pos) if self.warehouse_robot.medicine_pos else np.empty((0,2)), 
             np.array([self.warehouse_robot.target_pos])
             ))
 
@@ -146,6 +142,7 @@ class WarehouseRobotEnv(gym.Env):
 
         # Increment number of steps
         self.num_steps += 1
+        print(self.num_steps)
 
         # Return observation, reward, terminated, truncated, info
         obs = np.array(obs, dtype=np.float32)       # Hack to make unexpected type error to go away
