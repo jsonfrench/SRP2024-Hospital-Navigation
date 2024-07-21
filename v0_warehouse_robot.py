@@ -22,16 +22,17 @@ class RobotAction(Enum):
 class WarehouseRobot:
 
     # Initialize the grid size. Pass in an integer seed to make randomness (Targets) repeatable.
-    def __init__(self, grid_rows=const.GRID_ROWS, grid_cols=const.GRID_COLS, fps=const.FPS):
+    def __init__(self, grid_rows=const.GRID_ROWS, grid_cols=const.GRID_COLS, fps=const.FPS, render_mode='human'):
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
-        self.reset()
-
         self.fps = fps
-        self.last_action=''
-        self._init_pygame()
+        self.render_mode = render_mode
 
-    def _init_pygame(self):
+        self.reset()
+        self.last_action=''
+
+        self.window_surface = None
+
         pygame.init() # initialize pygame
         pygame.display.init() # Initialize the display module
 
@@ -55,9 +56,6 @@ class WarehouseRobot:
 
         # Define game window size (width, height)
         self.window_size = (self.cell_size[0] * self.grid_cols, self.cell_size[1] * self.grid_rows + self.action_info_height)
-
-        # Initialize game window
-        self.window_surface = pygame.display.set_mode(self.window_size) 
 
         # Initialize and resize sprites
         file_name = path.join(path.dirname(__file__), const.ROBOT_SPRITE)
@@ -247,12 +245,18 @@ class WarehouseRobot:
 
     def render(self):
 
+        if self.window_surface is None:    
+            pygame.init()
+            if self.render_mode == 'human':
+                pygame.display.init()
+                self.window_surface = pygame.display.set_mode(self.window_size) 
+
         self._process_events()
 
         # Wipe the screen to get rid of any artifacts from last frame
         self.window_surface.fill((255,255,255))
 
-        #Draw better background
+        # Draw better background
         colors = [      # Requires at least two colors (set both to same color if you don't want a gradient)
             (255,255,255), 
             (200,200,200) 
@@ -326,7 +330,6 @@ class WarehouseRobot:
 # For unit testing
 if __name__=="__main__":
     warehouseRobot = WarehouseRobot()
-    warehouseRobot.render()
 
     while(True):
         for event in pygame.event.get():
@@ -346,4 +349,5 @@ if __name__=="__main__":
         if keys[pygame.K_SPACE]:
             warehouseRobot.perform_action(list(RobotAction)[4])
 
-        warehouseRobot.render()
+        if warehouseRobot.render_mode is not None:
+            warehouseRobot.render()

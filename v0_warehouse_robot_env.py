@@ -37,7 +37,7 @@ class WarehouseRobotEnv(gym.Env):
         self.render_mode = render_mode
 
         # Initialize the WarehouseRobot problem
-        self.warehouse_robot = wr.WarehouseRobot(grid_rows=grid_rows, grid_cols=grid_cols, fps=self.metadata['render_fps'])
+        self.warehouse_robot = wr.WarehouseRobot(self.grid_rows, self.grid_cols, self.metadata['render_fps'], self.render_mode)
 
         # Gym requires defining the action space. The action space is robot's set of possible actions.
         # Training code can call action_space.sample() to randomly select an action. 
@@ -57,16 +57,29 @@ class WarehouseRobotEnv(gym.Env):
                 0.0     # target col position
                 ])
 
+        # high = np.array([
+        #         math.pi * 2,    # robot facing angle
+        #         self.grid_rows, # robot row position 
+        #         self.grid_cols, # robot col position
+        #         self.grid_rows, # walls row position 
+        #         self.grid_cols, # walls col position
+        #         self.grid_rows, # medicine row position 
+        #         self.grid_cols, # medicine col position
+        #         self.grid_rows, # target row position
+        #         self.grid_cols  # target col position
+        #         ])
+
+
         high = np.array([
                 math.pi * 2,    # robot facing angle
-                self.grid_rows, # robot row position 
-                self.grid_cols, # robot col position
-                self.grid_rows, # walls row position 
-                self.grid_cols, # walls col position
-                self.grid_rows, # medicine row position 
-                self.grid_cols, # medicine col position
-                self.grid_rows, # target row position
-                self.grid_cols  # target col position
+                self.grid_cols, # robot row position 
+                self.grid_rows, # robot col position
+                self.grid_cols, # walls row position 
+                self.grid_rows, # walls col position
+                self.grid_cols, # medicine row position 
+                self.grid_rows, # medicine col position
+                self.grid_cols, # target row position
+                self.grid_rows  # target col position
                 ])
         
         # Use a 1D vector: [robot_row_pos, robot_col_pos, robot_facing_angle, target_row_pos, target_col_pos]
@@ -84,11 +97,11 @@ class WarehouseRobotEnv(gym.Env):
 
         # Construct the observation state:
         obs = np.concatenate((
-            np.array([[self.warehouse_robot.robot_facing_angle, 0.0]]), 
-            np.array([self.warehouse_robot.robot_pos]), 
-            np.array(self.warehouse_robot.wall_pos), 
-            np.array(self.warehouse_robot.medicine_pos), 
-            np.array([self.warehouse_robot.target_pos])
+            np.array([self.warehouse_robot.robot_facing_angle]), 
+            np.array(self.warehouse_robot.robot_pos), 
+            np.array(self.warehouse_robot.wall_pos).flatten(), 
+            np.array(self.warehouse_robot.medicine_pos).flatten(), 
+            np.array(self.warehouse_robot.target_pos)
             ))
         
         # Additional info to return. For debugging or whatever.
@@ -117,7 +130,7 @@ class WarehouseRobotEnv(gym.Env):
         if not medicine_pos and medicine_amt < 1:
             terminated = True
             self.reward += 100
-        elif self.num_steps > 1000:
+        elif self.num_steps > 10000:
             truncated = True
         else:
             self.reward += -0.1
@@ -126,12 +139,20 @@ class WarehouseRobotEnv(gym.Env):
 
         # Construct the observation state: 
         obs = np.concatenate((
-            np.array([[self.warehouse_robot.robot_facing_angle, 0.0]]), 
-            np.array([self.warehouse_robot.robot_pos]), 
-            np.array(self.warehouse_robot.wall_pos), 
-            np.array(self.warehouse_robot.medicine_pos) if self.warehouse_robot.medicine_pos else np.empty((0,2)), 
-            np.array([self.warehouse_robot.target_pos])
+            np.array([self.warehouse_robot.robot_facing_angle]), 
+            np.array(self.warehouse_robot.robot_pos), 
+            np.array(self.warehouse_robot.wall_pos).flatten(), 
+            np.array(self.warehouse_robot.medicine_pos).flatten() if self.warehouse_robot.medicine_pos else np.zeros(2), 
+            np.array(self.warehouse_robot.target_pos)
             ))
+
+        # obs = np.concatenate((
+        #     np.array([[self.warehouse_robot.robot_facing_angle, 0.0]]), 
+        #     np.array([self.warehouse_robot.robot_pos]), 
+        #     np.array(self.warehouse_robot.wall_pos), 
+        #     np.array(self.warehouse_robot.medicine_pos) if self.warehouse_robot.medicine_pos else np.empty((0,2)), 
+        #     np.array([self.warehouse_robot.target_pos])
+        #     ))
 
         # Additional info to return. For debugging or whatever.
         info = {}
@@ -142,8 +163,7 @@ class WarehouseRobotEnv(gym.Env):
 
         # Increment number of steps
         self.num_steps += 1
-        print(self.num_steps)
-
+        
         # Return observation, reward, terminated, truncated, info
         obs = np.array(obs, dtype=np.float32)       # Hack to make unexpected type error to go away
         return obs, reward, terminated, truncated, info
