@@ -45,45 +45,60 @@ class WarehouseRobotEnv(gym.Env):
 
         # Gym requires defining the observation space. The observation space consists of the robot's and target's set of possible positions.
         # The observation space is used to validate the observation returned by reset() and step().
-        low = np.array([
-                0.0,    # robot facing angle
-                0.0,    # robot row position 
-                0.0,    # robot col position
-                0.0,    # walls row position 
-                0.0,    # walls col position
-                0.0,    # medicine row position 
-                0.0,    # medicine col position
-                0.0,    # target row position
-                0.0     # target col position
-                ])
+        # low = np.array([
+        #         0.0,    # robot facing angle
+        #         0.0,    # robot row position 
+        #         0.0,    # robot col position
+        #         0.0,    # walls row position 
+        #         0.0,    # walls col position
+        #         0.0,    # medicine row position 
+        #         0.0,    # medicine col position
+        #         0.0,    # target row position
+        #         0.0     # target col position
+        #         ])
+
+        low = np.array([])
+        low = np.append(low, 0.0)    # min robot facing angle
+        low = np.append(low, 0.0)    # min robot row position
+        low = np.append(low, 0.0)    # min robot col position
+        for i in range(len(self.warehouse_robot.wall_pos)):
+            low = np.append(low, 0.0)   # min wall row position
+            low = np.append(low, 0.0)   # min wall col position
+        for i in range(len(self.warehouse_robot.medicine_pos)):
+            low = np.append(low, 0.0)   # min medicine row position
+            low = np.append(low, 0.0)   # min medicine col position
+        low = np.append(low, 0.0)    # min target row position
+        low = np.append(low, 0.0)    # min target col position
 
         # high = np.array([
         #         math.pi * 2,    # robot facing angle
-        #         self.grid_rows, # robot row position 
-        #         self.grid_cols, # robot col position
-        #         self.grid_rows, # walls row position 
-        #         self.grid_cols, # walls col position
-        #         self.grid_rows, # medicine row position 
-        #         self.grid_cols, # medicine col position
-        #         self.grid_rows, # target row position
-        #         self.grid_cols  # target col position
+        #         self.grid_cols, # robot row position 
+        #         self.grid_rows, # robot col position
+        #         self.grid_cols, # walls row position 
+        #         self.grid_rows, # walls col position
+        #         self.grid_cols, # medicine row position 
+        #         self.grid_rows, # medicine col position
+        #         self.grid_cols, # target row position
+        #         self.grid_rows  # target col position
         #         ])
 
-
-        high = np.array([
-                math.pi * 2,    # robot facing angle
-                self.grid_cols, # robot row position 
-                self.grid_rows, # robot col position
-                self.grid_cols, # walls row position 
-                self.grid_rows, # walls col position
-                self.grid_cols, # medicine row position 
-                self.grid_rows, # medicine col position
-                self.grid_cols, # target row position
-                self.grid_rows  # target col position
-                ])
+        high = np.array([])
+        high = np.append(high, math.pi * 2)    # max robot facing angle
+        high = np.append(high, self.grid_cols)    # max robot row position
+        high = np.append(high, self.grid_rows)    # max robot col position
+        for i in range(len(self.warehouse_robot.wall_pos)):
+            high = np.append(high, self.grid_cols)   # max wall row position
+            high = np.append(high, self.grid_rows)   # max wall col position
+        for i in range(len(self.warehouse_robot.medicine_pos)):
+            high = np.append(high, self.grid_cols)   # max medicine row position
+            high = np.append(high, self.grid_rows)   # max medicine col position
+        high = np.append(high, self.grid_cols)    # max target row position
+        high = np.append(high, self.grid_rows)    # max target col position
         
-        # Use a 1D vector: [robot_row_pos, robot_col_pos, robot_facing_angle, target_row_pos, target_col_pos]
-        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(9,), dtype=np.float32)
+        # Use a 1D vector: [robot_row_pos, robot_col_pos, robot_facing_angle, target_row_pos, target_col_pos] 
+        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(5 + 2*len(self.warehouse_robot.wall_pos) + 2*len(self.warehouse_robot.medicine_pos),), dtype=np.float32)
+
+        print("initialized obs shape:",self.observation_space.shape)
 
     # Gym required function (and parameters) to reset the environment
     def reset(self, seed=None, options=None):
@@ -104,6 +119,8 @@ class WarehouseRobotEnv(gym.Env):
             np.array(self.warehouse_robot.target_pos)
             ))
         
+        print("reset obs shape:",obs.shape)
+        
         # Additional info to return. For debugging or whatever.
         info = {}
 
@@ -111,15 +128,13 @@ class WarehouseRobotEnv(gym.Env):
         if(self.render_mode=='human'):
             self.render()
 
-        # Calculate robot's distance from target
-        self.initial_distance_to_target = math.sqrt(math.pow(self.warehouse_robot.robot_pos[0] - self.warehouse_robot.target_pos[1], 2) + math.pow(self.warehouse_robot.robot_pos[1] - self.warehouse_robot.target_pos[0], 2))
-
         # Return observation and info
         obs = np.array(obs, dtype=np.float32)   # Hack to make unexpected type error to go away
         return obs, info
 
     # Gym required function (and parameters) to perform an action
     def step(self, action):
+
         # Perform action
         medicine_pos, medicine_amt = self.warehouse_robot.perform_action(wr.RobotAction(action))
 
@@ -146,13 +161,7 @@ class WarehouseRobotEnv(gym.Env):
             np.array(self.warehouse_robot.target_pos)
             ))
 
-        # obs = np.concatenate((
-        #     np.array([[self.warehouse_robot.robot_facing_angle, 0.0]]), 
-        #     np.array([self.warehouse_robot.robot_pos]), 
-        #     np.array(self.warehouse_robot.wall_pos), 
-        #     np.array(self.warehouse_robot.medicine_pos) if self.warehouse_robot.medicine_pos else np.empty((0,2)), 
-        #     np.array([self.warehouse_robot.target_pos])
-        #     ))
+        print("step obs shape:",obs.shape)
 
         # Additional info to return. For debugging or whatever.
         info = {}
