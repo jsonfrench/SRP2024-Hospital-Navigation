@@ -1,3 +1,5 @@
+# Original code from https://www.youtube.com/watch?v=arR7KzlYs4w&list=PL58zEckBH8fCMIVzQCRSZVPUp3ZAVagWi
+
 import gymnasium as gym
 import numpy as np
 
@@ -16,9 +18,10 @@ from datetime import datetime, timedelta
 import argparse
 import itertools
 
-#import flappy_bird_gymnasium
 import v0_warehouse_robot_env 
 import os
+
+import constants as const
 
 # For printing date and time
 DATE_FORMAT = "%m-%d %H:%M:%S"
@@ -40,7 +43,6 @@ class Agent():
         with open('hyperparameters.yml', 'r') as file:
             all_hyperparameter_sets = yaml.safe_load(file)
             hyperparameters = all_hyperparameter_sets[hyperparameter_set]
-            # print(hyperparameters)
 
         self.hyperparameter_set = hyperparameter_set
 
@@ -125,15 +127,14 @@ class Agent():
         # Train INDEFINITELY, manually stop the run when you are satisfied (or unsatisfied) with the results
         for episode in itertools.count():
 
-            state, _ = env.reset()  # Initialize environment. Reset returns (state,info).
+            state, _ = env.reset(seed=const.SEED)  # Initialize environment. Reset returns (state,info).
             state = torch.tensor(state, dtype=torch.float, device=device) # Convert state to tensor directly on device
 
             terminated = False      # True when agent reaches goal or fails
             truncated = False
             episode_reward = 0.0    # Used to accumulate rewards per episode
 
-            # Perform actions until episode terminates or reaches max rewards
-            # (on some envs, it is possible for the agent to train to a point where it NEVER terminates, so stop on reward is necessary)
+            # Perform actions until episode terminates or truncates
             while(not terminated and not truncated):
 
                 # Select action based on epsilon-greedy
@@ -169,8 +170,12 @@ class Agent():
                 # Move to the next state
                 state = new_state
 
+            # print("Episode:",episode,"-",episode_reward)    # Print out every episode and reward
+
             # Keep track of the rewards collected per episode.
             rewards_per_episode.append(episode_reward)
+            if not is_training:
+                print("Reward:", episode_reward)
 
             # Save model when new best reward is obtained.
             if is_training:
@@ -247,10 +252,11 @@ class Agent():
 
         rewards = torch.stack(rewards)
         terminations = torch.tensor(terminations).float().to(device)
+        truncations = torch.tensor(truncations).float().to(device)
 
         with torch.no_grad():
             # Calculate target Q values (expected returns)
-            target_q = rewards + (1-terminations) * self.discount_factor_g * target_dqn(new_states).max(dim=1)[0]
+            target_q = rewards + (1-terminations-truncations) * self.discount_factor_g * target_dqn(new_states).max(dim=1)[0]
             '''
                 target_dqn(new_states)  ==> tensor([[1,2,3],[4,5,6]])
                     .max(dim=1)         ==> torch.return_types.max(values=tensor([3,6]), indices=tensor([3, 0, 0, 1]))
@@ -284,6 +290,6 @@ if __name__ == '__main__':
     dql = Agent(hyperparameter_set=args.hyperparameters)
 
     if args.train:
-        dql.run(is_training=True)
+        dql.run(is_training=True, render=False)  # Set render to True to watch training
     else:
         dql.run(is_training=False, render=True)
