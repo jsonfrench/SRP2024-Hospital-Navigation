@@ -45,7 +45,7 @@ class WarehouseRobotEnv(gym.Env):
 
         # Gym requires defining the observation space. The observation space consists of the robot's and target's set of possible positions.
         # The observation space is used to validate the observation returned by reset() and step().
-
+        # The current approach is to build a 1-dimensional array containing all relevant data like player and wall positions
         low = np.array([])
         low = np.append(low, 0.0)    # min robot facing angle
         low = np.append(low, 0.0)    # min robot row position
@@ -74,8 +74,6 @@ class WarehouseRobotEnv(gym.Env):
         
         # Use a 1D vector: [robot_row_pos, robot_col_pos, robot_facing_angle, target_row_pos, target_col_pos] 
         self.observation_space = gym.spaces.Box(low=low, high=high, shape =(5 + 2*const.NUM_WALLS + 2*const.NUM_MEDICINE,), dtype=np.float32)
-        print("initialized obs shape:",self.observation_space.shape)
-        # print("init med:",len(self.warehouse_robot.medicine_pos),"init walls",len(self.warehouse_robot.wall_pos))
         
     # Gym required function (and parameters) to reset the environment
     def reset(self, seed=None, options=None):
@@ -91,14 +89,10 @@ class WarehouseRobotEnv(gym.Env):
         obs = np.concatenate((
             np.array([self.warehouse_robot.robot_facing_angle]), 
             np.array(self.warehouse_robot.robot_pos), 
-            np.pad(np.array(self.warehouse_robot.wall_pos).flatten(),(0,2*(const.NUM_WALLS-len(self.warehouse_robot.wall_pos))),'constant'), 
-            # np.array(self.warehouse_robot.medicine_pos).flatten() if self.warehouse_robot.medicine_pos else np.zeros(2), 
-            np.array(self.warehouse_robot.medicine_pos).flatten(), 
+            np.pad(np.array(self.warehouse_robot.wall_pos).flatten(),(0,2*(const.NUM_WALLS-len(self.warehouse_robot.wall_pos))),'constant'), # Here I pad the walls array in case some were deleted during generation.
+            np.pad(np.array(self.warehouse_robot.medicine_pos).flatten(),(0,2*(const.NUM_MEDICINE-len(self.warehouse_robot.medicine_pos))),'constant'), 
             np.array(self.warehouse_robot.target_pos)
             ))
-        print("reset obs shape:",obs.shape)
-        print("padding:",const.NUM_WALLS,"-",len(self.warehouse_robot.wall_pos))
-        print("shape of padded wall array:",np.pad(np.array(self.warehouse_robot.wall_pos).flatten(),(0,const.NUM_WALLS-len(self.warehouse_robot.wall_pos)),'constant').shape)
 
         # Additional info to return. For debugging or whatever.
         info = {}
@@ -115,16 +109,19 @@ class WarehouseRobotEnv(gym.Env):
     def step(self, action):
 
         # Perform action
-        medicine_pos, medicine_amt = self.warehouse_robot.perform_action(wr.RobotAction(action))
+        medicine_pos, medicine_amt, picked_up_medicine = self.warehouse_robot.perform_action(wr.RobotAction(action))
 
         # Determine reward and termination
         terminated = False
         truncated = False
 
+        if picked_up_medicine:
+            self.reward += 10
+
         if not medicine_pos and medicine_amt < 1:
             terminated = True
             self.reward += 100
-        elif self.num_steps > 10000:
+        elif self.num_steps > const.MAX_STEPS:
             truncated = True
         else:
             self.reward += -0.1
@@ -135,17 +132,10 @@ class WarehouseRobotEnv(gym.Env):
         obs = np.concatenate((
             np.array([self.warehouse_robot.robot_facing_angle]), 
             np.array(self.warehouse_robot.robot_pos), 
-            np.pad(np.array(self.warehouse_robot.wall_pos).flatten(),(0,2*(const.NUM_WALLS-len(self.warehouse_robot.wall_pos))),'constant'), 
-            # np.array(self.warehouse_robot.medicine_pos).flatten() if self.warehouse_robot.medicine_pos else np.zeros(2), 
-            np.array(self.warehouse_robot.medicine_pos).flatten(), 
+            np.pad(np.array(self.warehouse_robot.wall_pos).flatten(),(0,2*(const.NUM_WALLS-len(self.warehouse_robot.wall_pos))),'constant'), # Here I pad the walls array in case some were deleted during generation.
+            np.pad(np.array(self.warehouse_robot.medicine_pos).flatten(),(0,2*(const.NUM_MEDICINE-len(self.warehouse_robot.medicine_pos))),'constant'), 
             np.array(self.warehouse_robot.target_pos)
             ))
-        print("step obs shape:",obs.shape)
-        print("medicine:",len(np.array(self.warehouse_robot.medicine_pos).flatten()), 
-              "walls:",len(np.array(self.warehouse_robot.wall_pos).flatten()))
-
-        # print("meds if else :",np.array(self.warehouse_robot.medicine_pos).flatten() if self.warehouse_robot.medicine_pos else np.zeros(2))
-        # print("meds .flatten:",np.array(self.warehouse_robot.medicine_pos).flatten())
         
         # Additional info to return. For debugging or whatever.
         info = {}
@@ -170,7 +160,7 @@ if __name__=="__main__":
     env = gym.make('warehouse-robot-v0', render_mode='human')
 
     # Reset environment
-    obs = env.reset()[0]
+    obs = env.reset(seed=const.SEED)[0]
 
     while(True):
         # Manually run using keyboard
@@ -197,4 +187,4 @@ if __name__=="__main__":
             obs, reward, terminated, truncated, _ = env.step(man_action)
 
         if(terminated):
-            obs = env.reset()[0]
+            obs = env.reset(seed=const.SEED)[0]
