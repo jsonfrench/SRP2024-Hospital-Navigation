@@ -63,13 +63,7 @@ class WarehouseRobot:
         self.robot_img = pygame.transform.scale(img, self.cell_size)
 
     def reset(self, seed=None):
-        # Initialize Robot's starting position and attributes
-        self.robot_pos = [
-                random.randint(0, self.grid_cols-1),
-                random.randint(0, self.grid_rows-1)
-            ]
-        self.robot_facing_angle = random.uniform(0.0, math.pi*2)
-        self.medicine_amt = 0   # <- hard coded constant because robot should never start with more than 0 medicine
+        random.seed(seed)
 
         # For generating map elements
         self.tolerance = const.TOLERANCE
@@ -79,14 +73,19 @@ class WarehouseRobot:
         self.num_medicine = const.NUM_MEDICINE
         self.num_walls = const.NUM_WALLS
 
-        if not self.num_medicine:
-            self.medicine_amt = 1   # Start the robot with medicine to deliver if none are generated
-
+        # Check to make sure all tiles can fit on the grid
         if self.num_targets + self.num_medicine + self.num_walls + 1 > self.grid_rows*self.grid_cols:   # Sum all tiles plus an extra space for the player
             raise ValueError(f"Number of tiles ({self.num_targets + self.num_medicine + self.num_walls + 1}) exceeds number of grid spaces ({self.grid_rows*self.grid_cols})")
 
+        # Initialize Robot's starting position and attributes
+        self.robot_pos = [
+                random.randint(0, self.grid_cols-1),
+                random.randint(0, self.grid_rows-1)
+            ]
+        self.robot_facing_angle = random.uniform(0.0, math.pi*2)
+        self.medicine_amt = 0 if not self.num_medicine else 1
+
         # Set random target position
-        random.seed(seed)
         placements_left = self.num_targets
         while placements_left > 0:
             potential_pos = [
@@ -99,7 +98,6 @@ class WarehouseRobot:
             placements_left -= 1
 
         # Generate wall positons
-        random.seed(seed)
         tolerance = self.tolerance
         self.wall_pos = []
         placements_left = self.num_walls
@@ -125,7 +123,6 @@ class WarehouseRobot:
             placements_left -= 1
 
         # Generate medicine positons
-        random.seed(seed)
         tolerance = self.tolerance  # How many times we attempt to place medicine before knocking down a wall
         self.medicine_pos = []
         placements_left = self.num_medicine
@@ -209,6 +206,8 @@ class WarehouseRobot:
     def perform_action(self, robot_action:RobotAction) -> bool:
         self.last_action = robot_action
 
+        picked_up_medicine = False
+
         # Rotate left
         if robot_action == RobotAction.LEFT:
             self.robot_facing_angle -= self.robot_turning_speed
@@ -231,17 +230,19 @@ class WarehouseRobot:
                 self.robot_pos[0] = desired_x
             if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], desired_x, desired_y, self.grid_cols-1, self.grid_rows-1, self.wall_pos)[1]:
                 self.robot_pos[1] = desired_y
+        # Pick up / Drop off medicine
         elif robot_action == RobotAction.INTERACT:
             robot_grid_pos = [int(self.robot_pos[0]+.5), int(self.robot_pos[1]+.5)]
             if robot_grid_pos in self.medicine_pos:
                 self.medicine_amt += 1
                 self.medicine_pos.remove(robot_grid_pos)
+                picked_up_medicine = True
             elif robot_grid_pos == self.target_pos:
                 self.medicine_amt = 0       # Do something else (to be implemented later)
         # Clamp facing angle to 0 - 6.2831
         self.robot_facing_angle %= math.pi*2
 
-        return (self.medicine_pos, self.medicine_amt)
+        return (self.medicine_pos, self.medicine_amt, picked_up_medicine)
 
     def render(self):
 
