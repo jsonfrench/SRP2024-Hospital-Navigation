@@ -23,4 +23,4 @@ ROBOT_SPRITE = "sprites/robot_sprite.png"
 
 # Neural Network
 HIDDEN_LAYERS = 256
-MAX_STEPS = 1000    # <- episdoe will be truncated after this number of steps
+MAX_STEPS = 100000    # <- episdoe will be truncated after this number of steps

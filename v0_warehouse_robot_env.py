@@ -123,6 +123,7 @@ class WarehouseRobotEnv(gym.Env):
             self.reward += 100
         elif self.num_steps > const.MAX_STEPS:
             truncated = True
+            pass
         else:
             self.reward += -0.1
         

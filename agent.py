@@ -170,7 +170,7 @@ class Agent():
                 # Move to the next state
                 state = new_state
 
-            # print("Episode:",episode,"-",episode_reward)    # Print out every episode and reward
+            print("Episode:",episode,"-",episode_reward)    # Print out every episode and reward
 
             # Keep track of the rewards collected per episode.
             rewards_per_episode.append(episode_reward)
