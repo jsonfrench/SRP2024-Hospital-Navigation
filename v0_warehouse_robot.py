@@ -28,7 +28,7 @@ class WarehouseRobot:
         self.fps = fps
         self.render_mode = render_mode
 
-        self.generate_hospital(seed=const.SEED if const.IS_RANDOM else None)
+        self.generate_hospital(None if const.IS_RANDOM else const.SEED)
         self.reset()
         self.last_action=''
 
