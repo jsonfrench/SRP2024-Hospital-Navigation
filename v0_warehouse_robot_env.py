@@ -77,13 +77,13 @@ class WarehouseRobotEnv(gym.Env):
         
     # Gym required function (and parameters) to reset the environment
     def reset(self, seed=None, options=None):
-        super().reset(seed=seed) # gym requires this call to control randomness and reproduce scenarios.
+        super().reset() # gym requires this call to control randomness and reproduce scenarios.
 
         self.num_steps = 0
         self.reward = 0
 
         # Reset the WarehouseRobot. Optionally, pass in seed control randomness and reproduce scenarios.
-        self.warehouse_robot.reset(seed=seed)
+        self.warehouse_robot.reset()
 
         # Construct the observation state:
         obs = np.concatenate((
@@ -114,18 +114,15 @@ class WarehouseRobotEnv(gym.Env):
         # Determine reward and termination
         terminated = False
         truncated = False
-
         if picked_up_medicine:
-            self.reward += 10
-
+            self.reward += 100
         if not medicine_pos and medicine_amt < 1:
             terminated = True
-            self.reward += 100
+            self.reward += 1000
         elif self.num_steps > const.MAX_STEPS:
             truncated = True
-            pass
         else:
-            self.reward += -0.1
+            self.reward += -0.01
         
         reward = self.reward
 
@@ -161,7 +158,7 @@ if __name__=="__main__":
     env = gym.make('warehouse-robot-v0', render_mode='human')
 
     # Reset environment
-    obs = env.reset(seed=const.SEED)[0]
+    obs = env.reset()[0]
 
     while(True):
         # Manually run using keyboard
@@ -188,4 +185,4 @@ if __name__=="__main__":
             obs, reward, terminated, truncated, _ = env.step(man_action)
 
         if(terminated):
-            obs = env.reset(seed=const.SEED)[0]
+            obs = env.reset()[0]

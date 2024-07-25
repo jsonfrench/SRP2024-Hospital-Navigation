@@ -2,16 +2,17 @@
 FPS = 60
 
 # Hospital layout
-GRID_ROWS = 4   # height
-GRID_COLS = 4  # width
+GRID_ROWS = 3   # height
+GRID_COLS = 3  # width
 CELL_HEIGHT = 64 
 CELL_WIDTH = 64 
 # Hospital Generation
 TOLERANCE = 10  # Number of times we check for a valid position to place a tile before deleting existing ones
 NUM_TARGETS = 1 # <- currently limited to one target, a higher value will do nothing
 NUM_MEDICINE = 1
-NUM_WALLS = 4
-SEED = 5    # Enter None for random, any integer for persistent environment 
+NUM_WALLS = 1
+SEED = None    # Seed to determine random numbers
+IS_RANDOM = False   # Set True for randomized layouts every episode, False for same layout
 
 # Robot physics
 BASE_FPS = 60

@@ -28,6 +28,7 @@ class WarehouseRobot:
         self.fps = fps
         self.render_mode = render_mode
 
+        self.generate_hospital(seed=const.SEED if const.IS_RANDOM else None)
         self.reset()
         self.last_action=''
 
@@ -62,7 +63,7 @@ class WarehouseRobot:
         img = pygame.image.load(file_name)
         self.robot_img = pygame.transform.scale(img, self.cell_size)
 
-    def reset(self, seed=None):
+    def generate_hospital(self, seed=None):
         random.seed(seed)
 
         # For generating map elements
@@ -83,7 +84,8 @@ class WarehouseRobot:
                 random.randint(0, self.grid_rows-1)
             ]
         self.robot_facing_angle = random.uniform(0.0, math.pi*2)
-        self.medicine_amt = 0 if not self.num_medicine else 1
+        self.reset_robot_pos = self.robot_pos.copy()
+        self.reset_robot_facing_angle = self.robot_facing_angle
 
         # Set random target position
         placements_left = self.num_targets
@@ -147,6 +149,17 @@ class WarehouseRobot:
                 continue
             self.medicine_pos.append(potential_pos)
             placements_left -= 1
+        self.medicine_amt = 1 if not self.medicine_pos else 0
+        self.reset_medicine_amt = self.medicine_amt
+        self.reset_medicine_pos = self.medicine_pos.copy()
+
+    def reset(self):
+        if const.IS_RANDOM:
+            self.generate_hospital(seed=None)
+        self.robot_pos = self.reset_robot_pos.copy()
+        self.robot_facing_angle = self.reset_robot_facing_angle
+        self.medicine_pos = self.reset_medicine_pos.copy()
+        self.medicine_amt = self.reset_medicine_amt
 
     def is_valid_player_pos(self, x, y, dx, dy, max_x, max_y, walls):
         valid_x = (
@@ -349,6 +362,6 @@ if __name__=="__main__":
             warehouseRobot.perform_action(list(RobotAction)[3])
         if keys[pygame.K_SPACE]:
             warehouseRobot.perform_action(list(RobotAction)[4])
-
+        
         if warehouseRobot.render_mode is not None:
             warehouseRobot.render()
