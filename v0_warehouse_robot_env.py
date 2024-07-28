@@ -109,18 +109,17 @@ class WarehouseRobotEnv(gym.Env):
     def step(self, action):
 
         # Perform action
-        medicine_pos, medicine_amt, picked_up_medicine = self.warehouse_robot.perform_action(wr.RobotAction(action))
+        robot_grid_pos, target_pos, medicine_pos = self.warehouse_robot.perform_action(wr.RobotAction(action))
 
         # Determine reward and termination
         terminated = False
         truncated = False
-        if picked_up_medicine:
-            self.reward += 100
-        if not medicine_pos and medicine_amt < 1:
+        if robot_grid_pos == target_pos and not medicine_pos:
             terminated = True
             self.reward += 1000
         elif self.num_steps > const.MAX_STEPS:
             truncated = True
+            self.reward -= 1000
         else:
             self.reward += -0.01
         
@@ -176,12 +175,6 @@ if __name__=="__main__":
             obs, reward, terminated, truncated, _ = env.step(man_action)
         if keys[pygame.K_d]:
             man_action = 2
-            obs, reward, terminated, truncated, _ = env.step(man_action)
-        if keys[pygame.K_s]:
-            man_action = 3
-            obs, reward, terminated, truncated, _ = env.step(man_action)
-        if keys[pygame.K_SPACE]:
-            man_action = 4
             obs, reward, terminated, truncated, _ = env.step(man_action)
 
         if(terminated):

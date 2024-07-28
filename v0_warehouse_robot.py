@@ -16,8 +16,6 @@ class RobotAction(Enum):
     LEFT=0
     FORWARD=1
     RIGHT=2
-    BACKWARD=3
-    INTERACT=4
 
 class WarehouseRobot:
 
@@ -28,6 +26,20 @@ class WarehouseRobot:
         self.fps = fps
         self.render_mode = render_mode
 
+        # For controlling robot's speed
+        delta_time = const.BASE_FPS/self.fps    # Standardize movement to how it acts in 60fps. Breaks collision for low framerates.
+        self.robot_speed = const.ROBOT_SPEED * delta_time
+        self.robot_turning_speed = const.ROBOT_TURNING_SPEED * delta_time
+
+        # For controlling robot's speed
+        delta_time = const.BASE_FPS/self.fps    # Standardize movement to how it acts in 60fps. Breaks collision for low framerates.
+        self.robot_speed = const.ROBOT_SPEED * delta_time
+        self.robot_turning_speed = const.ROBOT_TURNING_SPEED * delta_time
+
+        # For controlling robot's speed
+        delta_time = const.BASE_FPS/self.fps    # Standardize movement to how it acts in 60fps. Breaks collision for low framerates.
+        self.robot_speed = const.ROBOT_SPEED * delta_time
+        self.robot_turning_speed = const.ROBOT_TURNING_SPEED * delta_time
         self.generate_hospital(None if const.IS_RANDOM else const.SEED)
         self.reset()
         self.last_action=''
@@ -49,11 +61,6 @@ class WarehouseRobot:
         self.cell_width = const.CELL_WIDTH
         self.cell_size = (self.cell_width, self.cell_height) 
         self.grid_line_width = int(min(self.cell_width, self.cell_height) * 0.07815)
-
-        # For controlling robot's speed
-        delta_time = const.BASE_FPS/self.fps    # Standardize movement to how it acts in 60fps. Breaks collision for low framerates.
-        self.robot_speed = const.ROBOT_SPEED * delta_time
-        self.robot_turning_speed = const.ROBOT_TURNING_SPEED * delta_time
 
         # Define game window size (width, height)
         self.window_size = (self.cell_size[0] * self.grid_cols, self.cell_size[1] * self.grid_rows + self.action_info_height)
@@ -83,6 +90,7 @@ class WarehouseRobot:
                 random.randint(0, self.grid_cols-1),
                 random.randint(0, self.grid_rows-1)
             ]
+        self.robot_grid_pos = [int(self.robot_pos[0]+0.5),int(self.robot_pos[1]+0.5)]
         self.robot_facing_angle = random.uniform(0.0, math.pi*2)
         self.reset_robot_pos = self.robot_pos.copy()
         self.reset_robot_facing_angle = self.robot_facing_angle
@@ -158,6 +166,7 @@ class WarehouseRobot:
             self.generate_hospital(seed=None)
         self.robot_pos = self.reset_robot_pos.copy()
         self.robot_facing_angle = self.reset_robot_facing_angle
+        self.robot_delta_pos = [math.cos(self.robot_facing_angle)*self.robot_speed,math.sin(self.robot_facing_angle)*self.robot_speed]
         self.medicine_pos = self.reset_medicine_pos.copy()
         self.medicine_amt = self.reset_medicine_amt
 
@@ -215,47 +224,113 @@ class WarehouseRobot:
                     if [x_new, y_new] not in self.wall_pos:
                         frontier.append([x_new,y_new])
         return (discovered, frontier)
-
+    
+    def distance(self, ax, ay, bx, by):
+        return math.sqrt((bx-ax)*(bx-ax)+(by-ay)*(by-ay))
+    
+    def raycast(self):
+        fov = 60 * 0.0174533
+        rays = 50
+        ray_angle = self.robot_facing_angle - fov/2 if rays > 1 else self.robot_facing_angle
+        px = self.robot_pos[0]*self.cell_size[0]+self.cell_size[0]/2    # player center screen coordinate x
+        py = self.robot_pos[1]*self.cell_size[1]+self.cell_size[1]/2    # player center screen coordinate y
+        for ray in range(rays):
+            # Check horizonal lines
+            dof = 0
+            h_ray_dist = math.inf
+            hx,hy = px,py
+            aTan = -1/math.tan(ray_angle)
+            if ray_angle>math.pi: # looking up
+                ry = int(self.robot_pos[1]+0.5)*self.cell_height - 0.0001   # <- it took me 4 hours to figure out that subtracting 0.0001 was necessary to get this to work
+                rx = (py-ry)*aTan + px
+                yo = -self.cell_height
+                xo = -yo*aTan
+            elif ray_angle<math.pi: # looking down
+                ry = int(self.robot_pos[1]+0.5+1)*self.cell_height
+                rx = (py-ry)*aTan + px
+                yo = self.cell_height
+                xo = -yo*aTan
+            else:   # looking straight left or right
+                rx, ry = px, py
+                dof = max(self.grid_rows, self.grid_cols)
+            while dof < max(self.grid_rows, self.grid_cols):
+                mx = int(rx // self.cell_width)
+                my = int(ry // self.cell_height)
+                mp = my*self.grid_cols+mx
+                if(my>=self.grid_rows or my<0 or [mx,my] in self.wall_pos):
+                    dof = max(self.grid_rows, self.grid_cols)
+                    hx, hy = rx, ry
+                    h_ray_dist = self.distance(px,py,hx,hy)
+                else:
+                    rx+=xo
+                    ry+=yo
+                    dof+=1
+            # Check vertical lines
+            dof = 0
+            v_ray_dist = math.inf
+            vx,vy = px,py
+            nTan = -math.tan(ray_angle)
+            if ray_angle>math.pi/2 and ray_angle<math.pi*3/2: # looking left
+                rx = int(self.robot_pos[0]+0.5)*self.cell_width - 0.0001 
+                ry = (px-rx)*nTan + py
+                xo = -self.cell_width
+                yo = -xo*nTan
+            elif ray_angle>math.pi*3/2 or ray_angle<math.pi/2: # looking right
+                rx = int(self.robot_pos[0]+0.5+1)*self.cell_width
+                ry = (px-rx)*nTan + py
+                xo = self.cell_width
+                yo = -xo*nTan
+            else:       # looking straight up or down
+                rx, ry = px, py
+                dof = max(self.grid_rows, self.grid_cols)
+            while dof < max(self.grid_rows, self.grid_cols):
+                mx = int(rx // self.cell_width)
+                my = int(ry // self.cell_height)
+                mp = my*self.grid_cols+mx
+                if(mx>=self.grid_cols or mx<0 or [mx,my] in self.wall_pos):
+                    dof = max(self.grid_rows, self.grid_cols)
+                    vx, vy = rx, ry
+                    v_ray_dist = self.distance(px,py,vx,vy)
+                else:
+                    rx+=xo
+                    ry+=yo
+                    dof+=1
+            hit_pos = [hx,hy] if h_ray_dist<v_ray_dist else [vx,vy]
+            pygame.draw.circle(self.window_surface,(0,0,255/rays*ray),hit_pos,5)
+            pygame.draw.line(self.window_surface,(0,0,255/rays*ray),[px,py],hit_pos,width=2)
+            ray_angle += (fov/(rays-1)) if rays>1 else 0
+            
     def perform_action(self, robot_action:RobotAction) -> bool:
         self.last_action = robot_action
-
-        picked_up_medicine = False
 
         # Rotate left
         if robot_action == RobotAction.LEFT:
             self.robot_facing_angle -= self.robot_turning_speed
+            self.robot_facing_angle %= math.pi*2
+            self.robot_delta_pos = [math.cos(self.robot_facing_angle)*self.robot_speed,math.sin(self.robot_facing_angle)*self.robot_speed]
         # Rotate right
         elif robot_action == RobotAction.RIGHT:
             self.robot_facing_angle += self.robot_turning_speed
+            self.robot_facing_angle %= math.pi*2
+            self.robot_delta_pos = [math.cos(self.robot_facing_angle)*self.robot_speed,math.sin(self.robot_facing_angle)*self.robot_speed]
         # Move forward
         elif robot_action == RobotAction.FORWARD:
-            desired_x = self.robot_pos[0] + math.cos(self.robot_facing_angle)*self.robot_speed
-            desired_y = self.robot_pos[1] + math.sin(self.robot_facing_angle)*self.robot_speed
-            if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], desired_x, desired_y, self.grid_cols-1, self.grid_rows-1, self.wall_pos)[0]:
-                self.robot_pos[0] = desired_x
-            if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], desired_x, desired_y, self.grid_cols-1, self.grid_rows-1, self.wall_pos)[1]:
-                self.robot_pos[1] = desired_y
-        # Move backward
-        elif robot_action == RobotAction.BACKWARD:
-            desired_x = self.robot_pos[0] - math.cos(self.robot_facing_angle)*self.robot_speed
-            desired_y = self.robot_pos[1] - math.sin(self.robot_facing_angle)*self.robot_speed
-            if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], desired_x, desired_y, self.grid_cols-1, self.grid_rows-1, self.wall_pos)[0]:
-                self.robot_pos[0] = desired_x
-            if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], desired_x, desired_y, self.grid_cols-1, self.grid_rows-1, self.wall_pos)[1]:
-                self.robot_pos[1] = desired_y
-        # Pick up / Drop off medicine
-        elif robot_action == RobotAction.INTERACT:
-            robot_grid_pos = [int(self.robot_pos[0]+.5), int(self.robot_pos[1]+.5)]
-            if robot_grid_pos in self.medicine_pos:
-                self.medicine_amt += 1
-                self.medicine_pos.remove(robot_grid_pos)
-                picked_up_medicine = True
-            elif robot_grid_pos == self.target_pos:
-                self.medicine_amt = 0       # Do something else (to be implemented later)
-        # Clamp facing angle to 0 - 6.2831
-        self.robot_facing_angle %= math.pi*2
-
-        return (self.medicine_pos, self.medicine_amt, picked_up_medicine)
+            # self.robot_pos[0] += self.robot_delta_pos[0]
+            # self.robot_pos[1] += self.robot_delta_pos[1]
+            # desired_x = self.robot_pos[0] + math.cos(self.robot_facing_angle)*self.robot_speed
+            # desired_y = self.robot_pos[1] + math.sin(self.robot_facing_angle)*self.robot_speed
+            if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], self.robot_pos[0] + self.robot_delta_pos[0], self.robot_pos[1] + self.robot_delta_pos[1], self.grid_cols-1, self.grid_rows-1, self.wall_pos)[0]:
+                self.robot_pos[0] += self.robot_delta_pos[0]
+            if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], self.robot_pos[0] + self.robot_delta_pos[0], self.robot_pos[1] + self.robot_delta_pos[1], self.grid_cols-1, self.grid_rows-1, self.wall_pos)[1]:
+                self.robot_pos[1] += self.robot_delta_pos[1]
+        # Calculate which grid square the robot is in
+        self.robot_grid_pos = [int(self.robot_pos[0]+0.5),int(self.robot_pos[1]+0.5)]
+        # Pick up medicine if the robot moves over it
+        if self.robot_grid_pos in self.medicine_pos:
+            self.medicine_amt += 1
+            self.medicine_pos.remove(self.robot_grid_pos)
+        
+        return (self.robot_grid_pos, self.target_pos, self.medicine_pos)
 
     def render(self):
 
@@ -313,14 +388,17 @@ class WarehouseRobot:
 
         # Draw player
         player_center = (self.robot_pos[0]*self.cell_size[0]+self.cell_size[0]/2,self.robot_pos[1]*self.cell_size[1]+self.cell_size[1]/2)
+        player_delta_center = ((self.robot_pos[0]+self.robot_delta_pos[0]/self.robot_speed)*self.cell_size[0]+self.cell_size[0]/2,(self.robot_pos[1]+self.robot_delta_pos[1]/self.robot_speed)*self.cell_size[1]+self.cell_size[1]/2)
         pygame.draw.circle(self.window_surface, "red", player_center, min(self.cell_size[0], self.cell_size[1])/2)
-        pygame.draw.line(self.window_surface, "blue", player_center, (player_center[0] + math.cos(self.robot_facing_angle)*self.cell_size[0], player_center[1] + math.sin(self.robot_facing_angle)*self.cell_size[1]))
+        pygame.draw.line(self.window_surface, "blue", player_center, player_delta_center)
 
         # Draw action display
         pygame.draw.rect(self.window_surface, pygame.Color(colors[len(colors)-1]), pygame.Rect(0,self.window_size[1]-self.action_info_height, self.window_size[0], self.action_info_height))
         text_img = self.action_font.render(f'Action: {self.last_action}', True, (0,0,0), pygame.Color(colors[len(colors)-1]))
         text_pos = (0, self.window_size[1] - self.action_info_height)
         self.window_surface.blit(text_img, text_pos) 
+
+        self.raycast()
 
         pygame.display.update()
                 
@@ -358,10 +436,8 @@ if __name__=="__main__":
             warehouseRobot.perform_action(list(RobotAction)[1])
         if keys[pygame.K_d]:
             warehouseRobot.perform_action(list(RobotAction)[2])
-        if keys[pygame.K_s]:
-            warehouseRobot.perform_action(list(RobotAction)[3])
-        if keys[pygame.K_SPACE]:
-            warehouseRobot.perform_action(list(RobotAction)[4])
+        if warehouseRobot.robot_grid_pos == warehouseRobot.target_pos:
+            warehouseRobot.reset()
         
         if warehouseRobot.render_mode is not None:
             warehouseRobot.render()
