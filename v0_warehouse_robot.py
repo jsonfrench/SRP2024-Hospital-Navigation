@@ -202,39 +202,20 @@ class WarehouseRobot:
                     if [x_new, y_new] not in self.wall_pos:
                         frontier.append([x_new,y_new])
         return False
-
-    # visulize DFS
-    def vis_dfs(self, position, destination):
-        discovered = []
-        frontier = []
-        frontier.append(position)
-        while frontier:
-            position = frontier[len(frontier)-1]
-            frontier.pop()
-            if position not in discovered:
-                discovered.append(position)
-                directions = [(1,0),(0,1),(-1,0),(0,-1)]
-                for x, y in directions:
-                    x_new = position[0] + x
-                    y_new = position[1] + y
-                    if x_new < 0 or x_new >= self.grid_cols or y_new < 0 or y_new >= self.grid_rows:
-                        continue
-                    if [x_new, y_new] == destination:
-                        return (discovered, frontier)
-                    if [x_new, y_new] not in self.wall_pos:
-                        frontier.append([x_new,y_new])
-        return (discovered, frontier)
     
     def distance(self, ax, ay, bx, by):
         return math.sqrt((bx-ax)*(bx-ax)+(by-ay)*(by-ay))
     
-    def raycast(self):
-        fov = 60 * 0.0174533
-        rays = 50
-        ray_angle = self.robot_facing_angle - fov/2 if rays > 1 else self.robot_facing_angle
+    def raycast(self, rays=1, fov=180, draw_rays=False):
+        distances = []
+        self.fov = fov * 0.0174533 
+        self.rays = rays
+        self.draw_rays = draw_rays
+        ray_angle = self.robot_facing_angle - self.fov/2 if  self.rays > 1 else self.robot_facing_angle
+        ray_angle %= math.pi*2 
         px = self.robot_pos[0]*self.cell_size[0]+self.cell_size[0]/2    # player center screen coordinate x
         py = self.robot_pos[1]*self.cell_size[1]+self.cell_size[1]/2    # player center screen coordinate y
-        for ray in range(rays):
+        for ray in range(self.rays):
             # Check horizonal lines
             dof = 0
             h_ray_dist = math.inf
@@ -256,7 +237,6 @@ class WarehouseRobot:
             while dof < max(self.grid_rows, self.grid_cols):
                 mx = int(rx // self.cell_width)
                 my = int(ry // self.cell_height)
-                mp = my*self.grid_cols+mx
                 if(my>=self.grid_rows or my<0 or [mx,my] in self.wall_pos):
                     dof = max(self.grid_rows, self.grid_cols)
                     hx, hy = rx, ry
@@ -286,7 +266,6 @@ class WarehouseRobot:
             while dof < max(self.grid_rows, self.grid_cols):
                 mx = int(rx // self.cell_width)
                 my = int(ry // self.cell_height)
-                mp = my*self.grid_cols+mx
                 if(mx>=self.grid_cols or mx<0 or [mx,my] in self.wall_pos):
                     dof = max(self.grid_rows, self.grid_cols)
                     vx, vy = rx, ry
@@ -296,9 +275,14 @@ class WarehouseRobot:
                     ry+=yo
                     dof+=1
             hit_pos = [hx,hy] if h_ray_dist<v_ray_dist else [vx,vy]
-            pygame.draw.circle(self.window_surface,(0,0,255/rays*ray),hit_pos,5)
-            pygame.draw.line(self.window_surface,(0,0,255/rays*ray),[px,py],hit_pos,width=2)
-            ray_angle += (fov/(rays-1)) if rays>1 else 0
+            distances.append(min(h_ray_dist,v_ray_dist))
+            # Visualise raycast
+            if self.draw_rays:
+                pygame.draw.circle(self.window_surface,(255-(255/ self.rays*ray),0,0),hit_pos,5)
+                pygame.draw.line(self.window_surface,(255-(255/ self.rays*ray),0,0),[px,py],hit_pos,width=2)
+            ray_angle += (self.fov/( self.rays-1)) if  self.rays>1 else 0
+            ray_angle %= math.pi*2
+        return(distances)
             
     def perform_action(self, robot_action:RobotAction) -> bool:
         self.last_action = robot_action
@@ -315,10 +299,6 @@ class WarehouseRobot:
             self.robot_delta_pos = [math.cos(self.robot_facing_angle)*self.robot_speed,math.sin(self.robot_facing_angle)*self.robot_speed]
         # Move forward
         elif robot_action == RobotAction.FORWARD:
-            # self.robot_pos[0] += self.robot_delta_pos[0]
-            # self.robot_pos[1] += self.robot_delta_pos[1]
-            # desired_x = self.robot_pos[0] + math.cos(self.robot_facing_angle)*self.robot_speed
-            # desired_y = self.robot_pos[1] + math.sin(self.robot_facing_angle)*self.robot_speed
             if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], self.robot_pos[0] + self.robot_delta_pos[0], self.robot_pos[1] + self.robot_delta_pos[1], self.grid_cols-1, self.grid_rows-1, self.wall_pos)[0]:
                 self.robot_pos[0] += self.robot_delta_pos[0]
             if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], self.robot_pos[0] + self.robot_delta_pos[0], self.robot_pos[1] + self.robot_delta_pos[1], self.grid_cols-1, self.grid_rows-1, self.wall_pos)[1]:
@@ -328,9 +308,9 @@ class WarehouseRobot:
         # Pick up medicine if the robot moves over it
         if self.robot_grid_pos in self.medicine_pos:
             self.medicine_amt += 1
-            self.medicine_pos.remove(self.robot_grid_pos)
-        
-        return (self.robot_grid_pos, self.target_pos, self.medicine_pos)
+            self.medicine_pos.remove(self.robot_grid_pos)        
+
+        return (self.robot_grid_pos, self.medicine_pos[len(self.medicine_pos)-1] if self.medicine_pos else self.target_pos, self.raycast(rays=const.RAYS,fov=const.FOV))    
 
     def render(self):
 
@@ -398,7 +378,9 @@ class WarehouseRobot:
         text_pos = (0, self.window_size[1] - self.action_info_height)
         self.window_surface.blit(text_img, text_pos) 
 
-        self.raycast()
+        # Visualize raycast
+        if const.RENDER_DURING_TRAINING:
+            self.raycast(rays=5,draw_rays=True)
 
         pygame.display.update()
                 

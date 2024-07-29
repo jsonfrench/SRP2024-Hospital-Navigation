@@ -290,6 +290,6 @@ if __name__ == '__main__':
     dql = Agent(hyperparameter_set=args.hyperparameters)
 
     if args.train:
-        dql.run(is_training=True, render=False)  # Set render to True to watch training
+        dql.run(is_training=True, render=const.RENDER_DURING_TRAINING)  # Set render to True to watch training
     else:
         dql.run(is_training=False, render=True)

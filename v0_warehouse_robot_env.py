@@ -50,12 +50,8 @@ class WarehouseRobotEnv(gym.Env):
         low = np.append(low, 0.0)    # min robot facing angle
         low = np.append(low, 0.0)    # min robot row position
         low = np.append(low, 0.0)    # min robot col position
-        for i in range(const.NUM_WALLS):
-            low = np.append(low, 0.0)   # min wall row position
-            low = np.append(low, 0.0)   # min wall col position
-        for i in range(const.NUM_MEDICINE):
-            low = np.append(low, 0.0)   # min medicine row position
-            low = np.append(low, 0.0)   # min medicine col position
+        for i in range(const.RAYS):
+            low = np.append(low, 0.0)   # min ray distance
         low = np.append(low, 0.0)    # min target row position
         low = np.append(low, 0.0)    # min target col position
 
@@ -63,17 +59,13 @@ class WarehouseRobotEnv(gym.Env):
         high = np.append(high, math.pi * 2)    # max robot facing angle
         high = np.append(high, self.grid_cols)    # max robot row position
         high = np.append(high, self.grid_rows)    # max robot col position
-        for i in range(const.NUM_WALLS):
-            high = np.append(high, self.grid_cols)   # max wall row position
-            high = np.append(high, self.grid_rows)   # max wall col position
-        for i in range(const.NUM_MEDICINE):
-            high = np.append(high, self.grid_cols)   # max medicine row position
-            high = np.append(high, self.grid_rows)   # max medicine col position
+        for i in range(const.RAYS):
+            high = np.append(high, self.warehouse_robot.distance(0.5,0.5,self.grid_cols,self.grid_rows)*self.warehouse_robot.cell_width)   # max ray distance
         high = np.append(high, self.grid_cols)    # max target row position
         high = np.append(high, self.grid_rows)    # max target col position
         
         # Use a 1D vector: [robot_row_pos, robot_col_pos, robot_facing_angle, target_row_pos, target_col_pos] 
-        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(5 + 2*const.NUM_WALLS + 2*const.NUM_MEDICINE,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(5+const.RAYS,), dtype=np.float32)
         
     # Gym required function (and parameters) to reset the environment
     def reset(self, seed=None, options=None):
@@ -89,8 +81,7 @@ class WarehouseRobotEnv(gym.Env):
         obs = np.concatenate((
             np.array([self.warehouse_robot.robot_facing_angle]), 
             np.array(self.warehouse_robot.robot_pos), 
-            np.pad(np.array(self.warehouse_robot.wall_pos).flatten(),(0,2*(const.NUM_WALLS-len(self.warehouse_robot.wall_pos))),'constant'), # Here I pad the walls array in case some were deleted during generation.
-            np.pad(np.array(self.warehouse_robot.medicine_pos).flatten(),(0,2*(const.NUM_MEDICINE-len(self.warehouse_robot.medicine_pos))),'constant'), 
+            np.array(self.warehouse_robot.raycast(rays=const.RAYS,fov=const.FOV)),
             np.array(self.warehouse_robot.target_pos)
             ))
 
@@ -109,12 +100,12 @@ class WarehouseRobotEnv(gym.Env):
     def step(self, action):
 
         # Perform action
-        robot_grid_pos, target_pos, medicine_pos = self.warehouse_robot.perform_action(wr.RobotAction(action))
+        robot_grid_pos, target_pos, distances = self.warehouse_robot.perform_action(wr.RobotAction(action))
 
         # Determine reward and termination
         terminated = False
         truncated = False
-        if robot_grid_pos == target_pos and not medicine_pos:
+        if robot_grid_pos == target_pos:
             terminated = True
             self.reward += 1000
         elif self.num_steps > const.MAX_STEPS:
@@ -129,8 +120,7 @@ class WarehouseRobotEnv(gym.Env):
         obs = np.concatenate((
             np.array([self.warehouse_robot.robot_facing_angle]), 
             np.array(self.warehouse_robot.robot_pos), 
-            np.pad(np.array(self.warehouse_robot.wall_pos).flatten(),(0,2*(const.NUM_WALLS-len(self.warehouse_robot.wall_pos))),'constant'), # Here I pad the walls array in case some were deleted during generation.
-            np.pad(np.array(self.warehouse_robot.medicine_pos).flatten(),(0,2*(const.NUM_MEDICINE-len(self.warehouse_robot.medicine_pos))),'constant'), 
+            np.array(self.warehouse_robot.raycast(rays=const.RAYS,fov=const.FOV)),
             np.array(self.warehouse_robot.target_pos)
             ))
         
