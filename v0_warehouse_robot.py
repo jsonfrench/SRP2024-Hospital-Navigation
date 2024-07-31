@@ -70,9 +70,23 @@ class WarehouseRobot:
         img = pygame.image.load(file_name)
         self.robot_img = pygame.transform.scale(img, self.cell_size)
 
+    def generate_map(self, map=const.MAP):
+        self.wall_pos=[]
+        self.medicine_pos=[]
+        self.target_pos=[]
+        for y in range(len(const.MAP)):
+            for x in range(len(const.MAP[y])):
+                if const.MAP[y][x] == 1:
+                    self.wall_pos.append([x,y])
+                elif const.MAP[y][x] == 2:
+                    self.medicine_pos.append([x,y])
+                elif const.MAP[y][x] == 3:
+                    self.target_pos=[x,y]
+
+
     def generate_hospital(self, seed=None):
         random.seed(seed)
-
+        
         # For generating map elements
         self.tolerance = const.TOLERANCE
         
@@ -92,8 +106,6 @@ class WarehouseRobot:
             ]
         self.robot_grid_pos = [int(self.robot_pos[0]+0.5),int(self.robot_pos[1]+0.5)]
         self.robot_facing_angle = random.uniform(0.0, math.pi*2)
-        self.reset_robot_pos = self.robot_pos.copy()
-        self.reset_robot_facing_angle = self.robot_facing_angle
 
         # Set random target position
         placements_left = self.num_targets
@@ -158,8 +170,24 @@ class WarehouseRobot:
             self.medicine_pos.append(potential_pos)
             placements_left -= 1
         self.medicine_amt = 1 if not self.medicine_pos else 0
+
+        # Store values for reset()
+        self.reset_robot_pos = self.robot_pos.copy()
+        self.reset_robot_facing_angle = self.robot_facing_angle
         self.reset_medicine_amt = self.medicine_amt
         self.reset_medicine_pos = self.medicine_pos.copy()
+
+        # Ensure robot never faces target (so that it doesn't learn to hold forward and get lucky)
+        angle_to_target = math.atan2(self.robot_pos[1]-self.target_pos[1],self.robot_pos[0]-self.target_pos[0])
+        c = angle_to_target if angle_to_target > 0 else math.pi*2 + angle_to_target
+        # Calculate values for observation space
+        self.alignment = (math.pi - abs(abs(self.robot_facing_angle-c)-math.pi))/math.pi    # How close the agent is to facing the target
+        if self.alignment > 0.5:
+            self.robot_facing_angle -= 3.1415926535
+            angle_to_target = math.atan2(self.robot_pos[1]-self.target_pos[1],self.robot_pos[0]-self.target_pos[0])
+            c = angle_to_target if angle_to_target > 0 else math.pi*2 + angle_to_target
+            self.alignment = (math.pi - abs(abs(self.robot_facing_angle-c)-math.pi))/math.pi    # How close the agent is to facing the target
+        self.inv_dist = 1-self.distance(self.robot_pos[0],self.robot_pos[1],self.target_pos[0],self.target_pos[1])/self.distance(self.reset_robot_pos[0],self.reset_robot_pos[1],self.target_pos[0],self.target_pos[1])  # How close the agent is to the target
 
     def reset(self):
         if const.IS_RANDOM:
@@ -169,6 +197,19 @@ class WarehouseRobot:
         self.robot_delta_pos = [math.cos(self.robot_facing_angle)*self.robot_speed,math.sin(self.robot_facing_angle)*self.robot_speed]
         self.medicine_pos = self.reset_medicine_pos.copy()
         self.medicine_amt = self.reset_medicine_amt
+
+        # Ensure robot never faces target (so that it doesn't learn to hold forward and get lucky)
+        angle_to_target = math.atan2(self.robot_pos[1]-self.target_pos[1],self.robot_pos[0]-self.target_pos[0])
+        c = angle_to_target if angle_to_target > 0 else math.pi*2 + angle_to_target
+        # Calculate values for observation space
+        self.alignment = (math.pi - abs(abs(self.robot_facing_angle-c)-math.pi))/math.pi    # How close the agent is to facing the target
+        if self.alignment > 0.5:
+            self.robot_facing_angle -= 3.1415926535
+            angle_to_target = math.atan2(self.robot_pos[1]-self.target_pos[1],self.robot_pos[0]-self.target_pos[0])
+            c = angle_to_target if angle_to_target > 0 else math.pi*2 + angle_to_target
+            self.alignment = (math.pi - abs(abs(self.robot_facing_angle-c)-math.pi))/math.pi    # How close the agent is to facing the target
+            self.robot_delta_pos = [math.cos(self.robot_facing_angle)*self.robot_speed,math.sin(self.robot_facing_angle)*self.robot_speed]
+        self.inv_dist = 1-self.distance(self.robot_pos[0],self.robot_pos[1],self.target_pos[0],self.target_pos[1])/self.distance(self.reset_robot_pos[0],self.reset_robot_pos[1],self.target_pos[0],self.target_pos[1])  # How close the agent is to the target
 
     def is_valid_player_pos(self, x, y, dx, dy, max_x, max_y, walls):
         valid_x = (
@@ -284,8 +325,9 @@ class WarehouseRobot:
             ray_angle %= math.pi*2
         return(distances)
             
-    def perform_action(self, robot_action:RobotAction) -> bool:
+    def perform_action(self, robot_action:RobotAction):
         self.last_action = robot_action
+        moved=False
 
         # Rotate left
         if robot_action == RobotAction.LEFT:
@@ -299,18 +341,27 @@ class WarehouseRobot:
             self.robot_delta_pos = [math.cos(self.robot_facing_angle)*self.robot_speed,math.sin(self.robot_facing_angle)*self.robot_speed]
         # Move forward
         elif robot_action == RobotAction.FORWARD:
+            self.robot_facing_angle += 0
+            self.robot_facing_angle %= math.pi*2
+            self.robot_delta_pos = [math.cos(self.robot_facing_angle)*self.robot_speed,math.sin(self.robot_facing_angle)*self.robot_speed]
             if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], self.robot_pos[0] + self.robot_delta_pos[0], self.robot_pos[1] + self.robot_delta_pos[1], self.grid_cols-1, self.grid_rows-1, self.wall_pos)[0]:
                 self.robot_pos[0] += self.robot_delta_pos[0]
             if self.is_valid_player_pos(self.robot_pos[0], self.robot_pos[1], self.robot_pos[0] + self.robot_delta_pos[0], self.robot_pos[1] + self.robot_delta_pos[1], self.grid_cols-1, self.grid_rows-1, self.wall_pos)[1]:
                 self.robot_pos[1] += self.robot_delta_pos[1]
+            moved=True
         # Calculate which grid square the robot is in
         self.robot_grid_pos = [int(self.robot_pos[0]+0.5),int(self.robot_pos[1]+0.5)]
         # Pick up medicine if the robot moves over it
         if self.robot_grid_pos in self.medicine_pos:
             self.medicine_amt += 1
-            self.medicine_pos.remove(self.robot_grid_pos)        
+            self.medicine_pos.remove(self.robot_grid_pos)
 
-        return (self.robot_grid_pos, self.medicine_pos[len(self.medicine_pos)-1] if self.medicine_pos else self.target_pos, self.raycast(rays=const.RAYS,fov=const.FOV))    
+        angle_to_target = math.atan2(self.robot_pos[1]-self.target_pos[1],self.robot_pos[0]-self.target_pos[0])
+        c = angle_to_target if angle_to_target > 0 else math.pi*2 + angle_to_target
+        self.alignment = (math.pi - abs(abs(self.robot_facing_angle-c)-math.pi))/math.pi    # How close the agent is to facing the target
+        self.inv_dist = 1-self.distance(self.robot_pos[0],self.robot_pos[1],self.target_pos[0],self.target_pos[1])/self.distance(self.reset_robot_pos[0],self.reset_robot_pos[1],self.target_pos[0],self.target_pos[1])  # How close the agent is to the target
+
+        return (self.robot_grid_pos, self.medicine_pos[0] if self.medicine_pos else self.target_pos, self.alignment, self.inv_dist, moved and self.alignment>0.5) 
 
     def render(self):
 
@@ -379,8 +430,25 @@ class WarehouseRobot:
         self.window_surface.blit(text_img, text_pos) 
 
         # Visualize raycast
-        if const.RENDER_DURING_TRAINING:
-            self.raycast(rays=5,draw_rays=True)
+        # if const.RENDER_DURING_TRAINING:
+        #     self.raycast(rays=5,draw_rays=True)
+
+        # Visualise debug info
+        # text_img = self.action_font.render(f'{self.robot_pos[0]:.2f},{self.robot_pos[1]:.2f}', True, (0,0,0))
+        # self.window_surface.blit(text_img, [self.robot_pos[0]*self.cell_width,self.robot_pos[1]*self.cell_height]) 
+        # text_img = self.action_font.render(f'{self.robot_facing_angle:.2f}', True, (0,0,0))
+        # self.window_surface.blit(text_img, [(self.robot_pos[0])*self.cell_width,self.robot_pos[1]*self.cell_height+20]) 
+        # target_center = (self.target_pos[0]*self.cell_size[0]+self.cell_size[0]/2,self.target_pos[1]*self.cell_size[1]+self.cell_size[1]/2)
+        # pygame.draw.circle(self.window_surface, "red", target_center, 10)
+        # angle_to_target = math.atan2(self.robot_pos[1]-self.target_pos[1],self.robot_pos[0]-self.target_pos[0])
+        # c = angle_to_target if angle_to_target > 0 else math.pi*2 + angle_to_target
+        # pygame.draw.circle(self.window_surface, "purple", [(math.cos(angle_to_target)+self.target_pos[0]+.5)*self.cell_width,(math.sin(angle_to_target)+self.target_pos[1]+.5)*self.cell_height], 10)
+        # diff = (math.pi - abs(abs(self.robot_facing_angle-c)-math.pi))/math.pi
+        # text_img = self.action_font.render(f'{diff}', True, (0,0,0))
+        # self.window_surface.blit(text_img, [self.robot_pos[0]*self.cell_width,self.robot_pos[1]*self.cell_height+40]) 
+        # inv_dist = 1-self.distance(self.robot_pos[0],self.robot_pos[1],self.target_pos[0],self.target_pos[1])/self.distance(self.reset_robot_pos[0],self.reset_robot_pos[1],self.target_pos[0],self.target_pos[1])
+        # text_img = self.action_font.render(f'{inv_dist:.5f}', True, (0,0,0))
+        # self.window_surface.blit(text_img, [self.robot_pos[0]*self.cell_width,self.robot_pos[1]*self.cell_height+60]) 
 
         pygame.display.update()
                 
@@ -405,10 +473,20 @@ class WarehouseRobot:
 if __name__=="__main__":
     warehouseRobot = WarehouseRobot()
 
-    while(True):
+    running=True
+    while(running):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
+                mouse_grid_pos = [mouse_pos[0]//warehouseRobot.cell_width,mouse_pos[1]//warehouseRobot.cell_height]
+                print(mouse_grid_pos)
+                if 0<=mouse_grid_pos[0]<warehouseRobot.grid_cols and 0<=mouse_grid_pos[1]<warehouseRobot.grid_rows:
+                    if mouse_grid_pos not in warehouseRobot.wall_pos:
+                        warehouseRobot.wall_pos.append(mouse_grid_pos)
+                    else:
+                        warehouseRobot.wall_pos.remove(mouse_grid_pos)
 
         # Manually run using keyboard
         keys = pygame.key.get_pressed()
@@ -418,6 +496,8 @@ if __name__=="__main__":
             warehouseRobot.perform_action(list(RobotAction)[1])
         if keys[pygame.K_d]:
             warehouseRobot.perform_action(list(RobotAction)[2])
+        if keys[pygame.K_r]:
+            warehouseRobot.reset()
         if warehouseRobot.robot_grid_pos == warehouseRobot.target_pos:
             warehouseRobot.reset()
         

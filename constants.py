@@ -10,9 +10,16 @@ CELL_WIDTH = 64
 TOLERANCE = 10  # Number of times we check for a valid position to place a tile before deleting existing ones
 NUM_TARGETS = 1 # <- currently limited to one target, a higher value will do nothing
 NUM_MEDICINE = 0
-NUM_WALLS = 5
+NUM_WALLS = 0
 SEED = 62    # Seed to determine random numbers
-IS_RANDOM = False   # Set True for randomized layouts every episode, False for same layout
+IS_RANDOM = True   # Set True for randomized layouts every episode, False for same layout
+MAP = [
+      [0,0,0,0,0],
+      [0,0,0,2,0],
+      [0,1,0,0,0],
+      [0,0,0,1,0],
+      [0,0,0,1,3]
+      ]
 
 # Robot physics
 BASE_FPS = 60
@@ -27,4 +34,4 @@ RENDER_DURING_TRAINING = False
 
 # Neural Network
 HIDDEN_LAYERS = 256
-MAX_STEPS = 10000    # <- episode will be truncated after this number of steps
+MAX_STEPS = 200    # <- episode will be truncated after this number of steps
