@@ -50,22 +50,28 @@ class WarehouseRobotEnv(gym.Env):
         low = np.append(low, 0.0)    # min robot facing angle
         low = np.append(low, 0.0)    # min robot row position
         low = np.append(low, 0.0)    # min robot col position
-        for i in range(const.RAYS):
-            low = np.append(low, 0.0)   # min ray distance
-        low = np.append(low, 0.0)    # min target row position
-        low = np.append(low, 0.0)    # min target col position
+        low = np.append(low, 0.0)    # min alignment
+        low = np.append(low, -max(self.grid_rows,self.grid_cols))    # min inverse distance
 
         high = np.array([])
         high = np.append(high, math.pi * 2)    # max robot facing angle
         high = np.append(high, self.grid_cols)    # max robot row position
         high = np.append(high, self.grid_rows)    # max robot col position
-        for i in range(const.RAYS):
-            high = np.append(high, self.warehouse_robot.distance(0.5,0.5,self.grid_cols,self.grid_rows)*self.warehouse_robot.cell_width)   # max ray distance
-        high = np.append(high, self.grid_cols)    # max target row position
-        high = np.append(high, self.grid_rows)    # max target col position
+        high = np.append(high, 1.0)    # max alignment
+        high = np.append(high, 1.0)    # max inverse distance
         
         # Use a 1D vector: [robot_row_pos, robot_col_pos, robot_facing_angle, target_row_pos, target_col_pos] 
-        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(5+const.RAYS,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(5,), dtype=np.float32)
+
+    def get_obs(self):
+        obs = np.concatenate((
+            np.array([self.warehouse_robot.robot_facing_angle]), # float from 0-6.28
+            np.array([self.warehouse_robot.robot_pos[0]]),    # part of a 2 element list of floats from 0-5
+            np.array([self.warehouse_robot.robot_pos[1]]),    # part of a 2 element list of floats from 0-5
+            np.array([self.warehouse_robot.alignment]),   # float from 0-1
+            np.array([self.warehouse_robot.inv_dist]) # float from -5 to 1
+            ))
+        return obs 
         
     # Gym required function (and parameters) to reset the environment
     def reset(self, seed=None, options=None):
@@ -78,12 +84,7 @@ class WarehouseRobotEnv(gym.Env):
         self.warehouse_robot.reset()
 
         # Construct the observation state:
-        obs = np.concatenate((
-            np.array([self.warehouse_robot.robot_facing_angle]), 
-            np.array(self.warehouse_robot.robot_pos), 
-            np.array(self.warehouse_robot.raycast(rays=const.RAYS,fov=const.FOV)),
-            np.array(self.warehouse_robot.target_pos)
-            ))
+        obs = self.get_obs()
 
         # Additional info to return. For debugging or whatever.
         info = {}
@@ -100,29 +101,26 @@ class WarehouseRobotEnv(gym.Env):
     def step(self, action):
 
         # Perform action
-        robot_grid_pos, target_pos, distances = self.warehouse_robot.perform_action(wr.RobotAction(action))
+        robot_grid_pos, target_pos, alignment, inv_dist, moved_towards = self.warehouse_robot.perform_action(wr.RobotAction(action))
 
         # Determine reward and termination
         terminated = False
         truncated = False
         if robot_grid_pos == target_pos:
             terminated = True
-            self.reward += 1000
+            self.reward += 10
         elif self.num_steps > const.MAX_STEPS:
+            self.reward += inv_dist * 10
+            self.reward += (alignment-0.5)*2 * 10
             truncated = True
-            self.reward -= 1000
         else:
-            self.reward += -0.01
+            self.reward += 10/const.MAX_STEPS if moved_towards else -10/const.MAX_STEPS 
+            # self.reward += -10/const.MAX_STEPS 
         
         reward = self.reward
 
         # Construct the observation state: 
-        obs = np.concatenate((
-            np.array([self.warehouse_robot.robot_facing_angle]), 
-            np.array(self.warehouse_robot.robot_pos), 
-            np.array(self.warehouse_robot.raycast(rays=const.RAYS,fov=const.FOV)),
-            np.array(self.warehouse_robot.target_pos)
-            ))
+        obs = self.get_obs()
         
         # Additional info to return. For debugging or whatever.
         info = {}
@@ -149,7 +147,8 @@ if __name__=="__main__":
     # Reset environment
     obs = env.reset()[0]
 
-    while(True):
+    running=True
+    while(running):
         # Manually run using keyboard
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
