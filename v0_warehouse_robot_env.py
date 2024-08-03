@@ -108,7 +108,7 @@ class WarehouseRobotEnv(gym.Env):
         truncated = False
         if robot_grid_pos == target_pos:
             terminated = True
-            self.reward += 10
+            self.reward += 10 #10 og
         elif self.num_steps > const.MAX_STEPS:
             self.reward += inv_dist * 10
             self.reward += (alignment-0.5)*2 * 10

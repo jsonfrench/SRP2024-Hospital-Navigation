@@ -68,8 +68,12 @@ class Agent():
         self.LOG_FILE   = os.path.join(RUNS_DIR, f'{self.hyperparameter_set}.log')
         self.MODEL_FILE = os.path.join(RUNS_DIR, f'{self.hyperparameter_set}.pt')
         self.GRAPH_FILE = os.path.join(RUNS_DIR, f'{self.hyperparameter_set}.png')
+        self.GRAPH_FILE_DELAYED = os.path.join(RUNS_DIR, f'{self.hyperparameter_set}.jpg') #new
 
     def run(self, is_training=True, render=False):
+        episode_num = 0         #track number of episodes new
+        episode_sucess = 0      #track number of agent successes new
+
         if is_training:
             start_time = datetime.now()
             last_graph_update_time = start_time
@@ -117,12 +121,14 @@ class Agent():
 
             # Track best reward
             best_reward = -9999999
+            worst_reward = 9999999
         else:
             # Load learned policy
             policy_dqn.load_state_dict(torch.load(self.MODEL_FILE))
 
             # switch model to evaluation mode
             policy_dqn.eval()
+            #target_dqn.eval() new
 
         # Train INDEFINITELY, manually stop the run when you are satisfied (or unsatisfied) with the results
         for episode in itertools.count():
@@ -170,12 +176,22 @@ class Agent():
                 # Move to the next state
                 state = new_state
 
+            #if (episode_reward < -1): #new
+                #episode_reward = -1
+
             print("Episode:",episode,"-",episode_reward)    # Print out every episode and reward
 
             # Keep track of the rewards collected per episode.
             rewards_per_episode.append(episode_reward)
             if not is_training:
                 print("Reward:", episode_reward)
+                episode_num = episode_num + 1
+                if episode_reward > 0:
+                    episode_sucess = episode_sucess + 1
+                print("Success Rate: " + str(episode_sucess) + " / " + str(episode_num))
+
+
+
 
             # Save model when new best reward is obtained.
             if is_training:
@@ -185,8 +201,16 @@ class Agent():
                     with open(self.LOG_FILE, 'a') as file:
                         file.write(log_message + '\n')
 
-                    torch.save(policy_dqn.state_dict(), self.MODEL_FILE)
+                    #torch.save(policy_dqn.state_dict(), self.MODEL_FILE)
                     best_reward = episode_reward
+                
+                if episode_reward < worst_reward:
+                    log_message = f"{datetime.now().strftime(DATE_FORMAT)}: New worst reward {episode_reward:0.1f} ({(episode_reward-worst_reward)/worst_reward*100:+.1f}%) at episode {episode}"
+                    print(log_message)
+                    with open(self.LOG_FILE, 'a') as file:
+                        file.write(log_message + '\n')
+
+                    worst_reward = episode_reward
 
 
                 # Update graph every x seconds
@@ -194,6 +218,7 @@ class Agent():
                 if current_time - last_graph_update_time > timedelta(seconds=10):
                     self.save_graph(rewards_per_episode, epsilon_history)
                     last_graph_update_time = current_time
+                    #print("hi1")
 
                 # If enough experience has been collected
                 if len(memory)>self.mini_batch_size:
@@ -206,8 +231,14 @@ class Agent():
 
                     # Copy policy network to target network after a certain number of steps
                     if step_count > self.network_sync_rate:
+                        print("update step count: " + str(step_count))
+                        #self.save_graph2(rewards_per_episode, epsilon_history)
                         target_dqn.load_state_dict(policy_dqn.state_dict())
                         step_count=0
+                        #print("update") #currently updating every episode
+                        #print("hi2")
+
+                        torch.save(target_dqn.state_dict(), self.MODEL_FILE)
 
 
     def save_graph(self, rewards_per_episode, epsilon_history):
@@ -219,22 +250,55 @@ class Agent():
         for x in range(len(mean_rewards)):
             mean_rewards[x] = np.mean(rewards_per_episode[max(0, x-99):(x+1)])
         plt.subplot(121) # plot on a 1 row x 2 col grid, at cell 1
-        # plt.xlabel('Episodes')
+        plt.xlabel('Episodes')
         plt.ylabel('Mean Rewards')
         plt.plot(mean_rewards)
 
+        #plt.ylabel('Episodic Rewards') # new
+        #plt.plot(rewards_per_episode)  # new
+
+        plt.title("Mean Rewards through Training")
+
         # Plot epsilon decay (Y-axis) vs episodes (X-axis)
         plt.subplot(122) # plot on a 1 row x 2 col grid, at cell 2
-        # plt.xlabel('Time Steps')
+        plt.xlabel('Time Steps')
         plt.ylabel('Epsilon Decay')
         plt.plot(epsilon_history)
+
+        plt.title("Episilon Decay through Training")
 
         plt.subplots_adjust(wspace=1.0, hspace=1.0)
 
         # Save plots
         fig.savefig(self.GRAPH_FILE)
+        #fig.savefig(self.GRAPH_FILE_DELAYED) #new
         plt.close(fig)
 
+    #copy
+    def save_graph2(self, rewards_per_episode, epsilon_history):
+            # Save plots
+            fig = plt.figure(2)
+
+            # Plot average rewards (Y-axis) vs episodes (X-axis)
+            mean_rewards = np.zeros(len(rewards_per_episode))
+            for x in range(len(mean_rewards)):
+                mean_rewards[x] = np.mean(rewards_per_episode[max(0, x-99):(x+1)])
+            plt.subplot(121) # plot on a 1 row x 2 col grid, at cell 1
+            # plt.xlabel('Episodes')
+            plt.ylabel('Mean Rewards')
+            plt.plot(mean_rewards)
+
+            # Plot epsilon decay (Y-axis) vs episodes (X-axis)
+            plt.subplot(122) # plot on a 1 row x 2 col grid, at cell 2
+            # plt.xlabel('Time Steps')
+            plt.ylabel('Epsilon Decay')
+            plt.plot(epsilon_history)
+
+            plt.subplots_adjust(wspace=1.0, hspace=1.0)
+
+            # Save plots
+            fig.savefig(self.GRAPH_FILE_DELAYED) #new
+            plt.close(fig)
 
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn):

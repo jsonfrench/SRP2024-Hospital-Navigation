@@ -18,7 +18,7 @@ warehouse_robot:
   epsilon_init: 1
   epsilon_decay: 0.999
   epsilon_min: 0.05
-  network_sync_rate: 10
+  network_sync_rate: 2250
   learning_rate_a: 0.01
   discount_factor_g: 0.99
   stop_on_reward: 100000
