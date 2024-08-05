@@ -110,12 +110,10 @@ class WarehouseRobotEnv(gym.Env):
             terminated = True
             self.reward += 10 #10 og
         elif self.num_steps > const.MAX_STEPS:
-            self.reward += inv_dist * 10
-            self.reward += (alignment-0.5)*2 * 10
             truncated = True
+            self.reward += sum(tiles_hit)/const.RAYS * 10
         else:
-            self.reward += 10/const.MAX_STEPS if moved_towards else -10/const.MAX_STEPS 
-            # self.reward += -10/const.MAX_STEPS 
+            self.reward += -10/const.MAX_STEPS 
         
         reward = self.reward
 

@@ -204,7 +204,7 @@ class WarehouseRobot:
         c = angle_to_target if angle_to_target > 0 else math.pi*2 + angle_to_target
         # Calculate values for observation space
         self.alignment = (math.pi - abs(abs(self.robot_facing_angle-c)-math.pi))/math.pi    # How close the agent is to facing the target
-        if self.alignment > 0.5 and not self.medicine_pos:
+        if self.alignment > 0.5:
             self.robot_facing_angle -= 3.1415926535
             self.robot_facing_angle %= 2*math.pi
             angle_to_target = math.atan2(self.robot_pos[1]-self.medicine_pos[0][1],self.robot_pos[0]-self.medicine_pos[0][0])
@@ -251,6 +251,7 @@ class WarehouseRobot:
     
     def raycast(self, rays=1, fov=180, draw_rays=False):
         distances = []
+        seen_tiles = []
         self.fov = fov * 0.0174533 
         self.rays = rays
         self.draw_rays = draw_rays
@@ -280,7 +281,7 @@ class WarehouseRobot:
             while dof < max(self.grid_rows, self.grid_cols):
                 mx = int(rx // self.cell_width)
                 my = int(ry // self.cell_height)
-                if(my>=self.grid_rows or my<0 or [mx,my] in self.wall_pos):
+                if(my>=self.grid_rows or my<0 or [mx,my] in self.wall_pos or [mx,my] == self.medicine_pos[0]):
                     dof = max(self.grid_rows, self.grid_cols)
                     hx, hy = rx, ry
                     h_ray_dist = self.distance(px,py,hx,hy)
@@ -309,7 +310,7 @@ class WarehouseRobot:
             while dof < max(self.grid_rows, self.grid_cols):
                 mx = int(rx // self.cell_width)
                 my = int(ry // self.cell_height)
-                if(mx>=self.grid_cols or mx<0 or [mx,my] in self.wall_pos):
+                if(my>=self.grid_rows or my<0 or [mx,my] in self.wall_pos or [mx,my] == self.medicine_pos[0]):
                     dof = max(self.grid_rows, self.grid_cols)
                     vx, vy = rx, ry
                     v_ray_dist = self.distance(px,py,vx,vy)
@@ -318,14 +319,25 @@ class WarehouseRobot:
                     ry+=yo
                     dof+=1
             hit_pos = [hx,hy] if h_ray_dist<v_ray_dist else [vx,vy]
+            hit_grid_pos = [hit_pos[0]//self.cell_width, hit_pos[1]//self.cell_height]
+            ray_color = (0,0,255)
+            if hit_grid_pos in self.wall_pos:   # hit wall
+                ray_color = (0,0,0)
+                seen_tiles.append(0)
+            elif hit_grid_pos in self.medicine_pos: # hit medicine
+                ray_color = (255,150,0)
+                seen_tiles.append(1)
+            else: 
+                ray_color = (0,0,0)     # hit boundary
+                seen_tiles.append(0)
             distances.append(min(h_ray_dist,v_ray_dist))
-            # Visualise raycast
             if self.draw_rays:
-                pygame.draw.circle(self.window_surface,(255-(255/ self.rays*ray),0,0),hit_pos,5)
-                pygame.draw.line(self.window_surface,(255-(255/ self.rays*ray),0,0),[px,py],hit_pos,width=2)
+                pygame.draw.circle(self.window_surface,ray_color,hit_pos,5)
+                pygame.draw.line(self.window_surface,ray_color,[px,py],hit_pos,width=2)
             ray_angle += (self.fov/( self.rays-1)) if  self.rays>1 else 0
             ray_angle %= math.pi*2
-        return(distances)
+        return seen_tiles
+        # return(distances)
             
     def perform_action(self, robot_action:RobotAction):
         self.last_action = robot_action
@@ -363,7 +375,7 @@ class WarehouseRobot:
         self.alignment = (math.pi - abs(abs(self.robot_facing_angle-c)-math.pi))/math.pi    # How close the agent is to facing the target
         self.inv_dist = 1-self.distance(self.robot_pos[0],self.robot_pos[1],self.medicine_pos[0][0],self.medicine_pos[0][1])/self.distance(self.reset_robot_pos[0],self.reset_robot_pos[1],self.medicine_pos[0][0],self.medicine_pos[0][1])  # How close the agent is to the target
 
-        return (self.robot_grid_pos, self.medicine_pos[0], self.alignment, self.inv_dist, moved and self.alignment>0.5) 
+        return (self.robot_grid_pos, self.medicine_pos[0], self.raycast(rays=const.RAYS,fov=const.FOV)) 
 
     def render(self):
 
@@ -430,8 +442,8 @@ class WarehouseRobot:
         self.window_surface.blit(text_img, text_pos) 
 
         # Visualize raycast
-        # if const.RENDER_DURING_TRAINING:
-        #     self.raycast(rays=5,draw_rays=True)
+        if const.RENDER_DURING_TRAINING:
+            self.raycast(rays=const.RAYS,fov=const.FOV,draw_rays=True)
 
         pygame.display.update()
                 
