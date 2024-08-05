@@ -101,7 +101,7 @@ class WarehouseRobotEnv(gym.Env):
     def step(self, action):
 
         # Perform action
-        robot_grid_pos, target_pos, alignment, inv_dist, moved_towards = self.warehouse_robot.perform_action(wr.RobotAction(action))
+        robot_grid_pos, target_pos, tiles_hit = self.warehouse_robot.perform_action(wr.RobotAction(action))
 
         # Determine reward and termination
         terminated = False
