@@ -22,4 +22,4 @@ warehouse_robot:
   learning_rate_a: 0.01
   discount_factor_g: 0.99
   stop_on_reward: 100000
-  fc1_nodes: 16
+  fc1_nodes: 32
