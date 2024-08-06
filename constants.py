@@ -25,8 +25,8 @@ MAP = [
 BASE_FPS = 60
 ROBOT_SPEED = 0.1
 ROBOT_TURNING_SPEED = 0.1
-FOV = 180   # <- enter in degrees
-RAYS = 5    # number of distance rays casted
+FOV = 90   # <- enter in degrees
+RAYS = 15    # number of distance rays casted
 
 # Graphics
 ROBOT_SPRITE = "sprites/robot_sprite.png"
