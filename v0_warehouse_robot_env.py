@@ -50,26 +50,25 @@ class WarehouseRobotEnv(gym.Env):
         low = np.append(low, 0.0)    # min robot facing angle
         low = np.append(low, 0.0)    # min robot row position
         low = np.append(low, 0.0)    # min robot col position
-        low = np.append(low, 0.0)    # min alignment
-        low = np.append(low, -max(self.grid_rows,self.grid_cols))    # min inverse distance
+        for i in range(const.RAYS):
+            low = np.append(low, 0.0)    # min value of tile in sight
 
         high = np.array([])
         high = np.append(high, math.pi * 2)    # max robot facing angle
         high = np.append(high, self.grid_cols)    # max robot row position
         high = np.append(high, self.grid_rows)    # max robot col position
-        high = np.append(high, 1.0)    # max alignment
-        high = np.append(high, 1.0)    # max inverse distance
-        
+        for i in range(const.RAYS):
+            high = np.append(high, 1.0)    # max value of tile in sight
+
         # Use a 1D vector: [robot_row_pos, robot_col_pos, robot_facing_angle, target_row_pos, target_col_pos] 
-        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(5,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(3+const.RAYS,), dtype=np.float32)
 
     def get_obs(self):
         obs = np.concatenate((
             np.array([self.warehouse_robot.robot_facing_angle]), # float from 0-6.28
             np.array([self.warehouse_robot.robot_pos[0]]),    # part of a 2 element list of floats from 0-5
             np.array([self.warehouse_robot.robot_pos[1]]),    # part of a 2 element list of floats from 0-5
-            np.array([self.warehouse_robot.alignment]),   # float from 0-1
-            np.array([self.warehouse_robot.inv_dist]) # float from -5 to 1
+            np.array((self.warehouse_robot.raycast(rays=const.RAYS,fov=const.FOV))) # list of raycast values
             ))
         return obs 
         
@@ -153,6 +152,7 @@ if __name__=="__main__":
                 running = False
 
         terminated = False
+        truncated = False
         keys = pygame.key.get_pressed()
         if keys[pygame.K_a]:
             man_action = 0
@@ -164,5 +164,5 @@ if __name__=="__main__":
             man_action = 2
             obs, reward, terminated, truncated, _ = env.step(man_action)
 
-        if(terminated):
+        if(terminated or truncated):
             obs = env.reset()[0]
