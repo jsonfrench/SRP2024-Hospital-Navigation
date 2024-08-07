@@ -50,6 +50,8 @@ class WarehouseRobotEnv(gym.Env):
         low = np.append(low, 0.0)    # min robot facing angle
         low = np.append(low, 0.0)    # min robot row position
         low = np.append(low, 0.0)    # min robot col position
+        low = np.append(low, 0.0)    # min target row position
+        low = np.append(low, 0.0)    # min target col position
         for i in range(const.RAYS):
             low = np.append(low, 0.0)    # min value of tile in sight
         for i in range(const.RAYS):
@@ -59,13 +61,16 @@ class WarehouseRobotEnv(gym.Env):
         high = np.append(high, math.pi * 2)    # max robot facing angle
         high = np.append(high, 1.0)    # max robot row position
         high = np.append(high, 1.0)    # max robot col position
+        high = np.append(high, 1.0)    # max target row position
+        high = np.append(high, 1.0)    # max target col position
         for i in range(const.RAYS):
             high = np.append(high, 1.0)    # max value of tile in sight
         for i in range(const.RAYS):
             high = np.append(high, math.sqrt(self.grid_rows*self.grid_rows+self.grid_cols*self.grid_cols)*const.CELL_WIDTH)    # max length of ray
 
         # Use a 1D vector: [robot_row_pos, robot_col_pos, robot_facing_angle, target_row_pos, target_col_pos] 
-        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(3+(2*const.RAYS),), dtype=np.float32)
+        # self.observation_space = gym.spaces.Box(low=low, high=high, shape =(3+(2*const.RAYS),), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=low, high=high, shape =(5+(2*const.RAYS),), dtype=np.float32)
 
         self.max_ray_dist = math.sqrt((self.grid_rows-0.5)*(self.grid_rows-0.5)+(self.grid_cols-0.5)*(self.grid_cols-0.5))*const.CELL_WIDTH
 
@@ -74,6 +79,8 @@ class WarehouseRobotEnv(gym.Env):
             np.array([self.warehouse_robot.robot_facing_angle]), # float from 0-6.28
             np.array([self.warehouse_robot.robot_pos[0]/(self.grid_cols-1)]),    # normalized x position of robot
             np.array([self.warehouse_robot.robot_pos[1]/(self.grid_rows-1)]),    # normalized y position of robot
+            np.array([self.warehouse_robot.target_pos[0]/(self.grid_cols-1)]),    # normalized x position of target
+            np.array([self.warehouse_robot.target_pos[1]/(self.grid_rows-1)]),    # normalized y position of target
             np.array((self.warehouse_robot.raycast(rays=const.RAYS,fov=const.FOV))[0]), # list of raycast values
             np.array(([dist/self.max_ray_dist for dist in self.warehouse_robot.raycast(rays=const.RAYS,fov=const.FOV)[1]])) # list of normalized distance values
             ))
