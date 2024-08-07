@@ -82,7 +82,6 @@ class WarehouseRobot:
                 elif const.MAP[y][x] == 3:
                     self.target_pos=[x,y]
 
-
     def generate_hospital(self, seed=None):
         random.seed(seed)
         
@@ -310,7 +309,7 @@ class WarehouseRobot:
             while dof < max(self.grid_rows, self.grid_cols):
                 mx = int(rx // self.cell_width)
                 my = int(ry // self.cell_height)
-                if(my>=self.grid_rows or my<0 or [mx,my] in self.wall_pos or [mx,my] == self.medicine_pos[0]):
+                if(mx>=self.grid_rows or mx<0 or [mx,my] in self.wall_pos or [mx,my] == self.medicine_pos[0]):
                     dof = max(self.grid_rows, self.grid_cols)
                     vx, vy = rx, ry
                     v_ray_dist = self.distance(px,py,vx,vy)
@@ -336,7 +335,7 @@ class WarehouseRobot:
                 pygame.draw.line(self.window_surface,ray_color,[px,py],hit_pos,width=2)
             ray_angle += (self.fov/( self.rays-1)) if  self.rays>1 else 0
             ray_angle %= math.pi*2
-        return seen_tiles
+        return [seen_tiles, distances]
         # return(distances)
             
     def perform_action(self, robot_action:RobotAction):
