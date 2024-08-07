@@ -10,15 +10,16 @@ CELL_WIDTH = 64
 TOLERANCE = 10  # Number of times we check for a valid position to place a tile before deleting existing ones
 NUM_TARGETS = 1 # <- currently limited to one target, a higher value will do nothing
 NUM_MEDICINE = 0
-NUM_WALLS = 0
+NUM_WALLS = 5
 SEED = 62    # Seed to determine random numbers
 IS_RANDOM = True   # Set True for randomized layouts every episode, False for same layout
-MAP = [
-      [0,0,0,0,0],
+# MAP = None
+MAP = [     # 1 = Wall 2 = Medicine 3 = Target 4 = Robot
+      [4,0,0,0,0],
       [0,0,0,2,0],
       [0,1,0,0,0],
-      [0,0,0,1,0],
-      [0,0,0,1,3]
+      [1,0,0,1,0],
+      [1,0,0,1,3]
       ]
 
 # Robot physics

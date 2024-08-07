@@ -20,7 +20,7 @@ class RobotAction(Enum):
 class WarehouseRobot:
 
     # Initialize the grid size. Pass in an integer seed to make randomness (Targets) repeatable.
-    def __init__(self, grid_rows=const.GRID_ROWS, grid_cols=const.GRID_COLS, fps=const.FPS, render_mode='human'):
+    def __init__(self, grid_rows=const.GRID_ROWS if not const.MAP else len(const.MAP), grid_cols=const.GRID_COLS if not const.MAP else len(const.MAP[0]), fps=const.FPS, render_mode='human'):
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
         self.fps = fps
@@ -41,6 +41,8 @@ class WarehouseRobot:
         self.robot_speed = const.ROBOT_SPEED * delta_time
         self.robot_turning_speed = const.ROBOT_TURNING_SPEED * delta_time
         self.generate_hospital(None if const.IS_RANDOM else const.SEED)
+        if const.MAP:
+            self.generate_map()
         self.last_action=''
 
         self.window_surface = None
@@ -73,6 +75,7 @@ class WarehouseRobot:
         self.wall_pos=[]
         self.medicine_pos=[]
         self.target_pos=[]
+        self.robot_pos=[]
         for y in range(len(const.MAP)):
             for x in range(len(const.MAP[y])):
                 if const.MAP[y][x] == 1:
@@ -81,6 +84,9 @@ class WarehouseRobot:
                     self.medicine_pos.append([x,y])
                 elif const.MAP[y][x] == 3:
                     self.target_pos=[x,y]
+                elif const.MAP[y][x] == 4:
+                    self.robot_pos=[x,y]
+        self.medicine_pos.append(self.target_pos)
 
     def generate_hospital(self, seed=None):
         random.seed(seed)
@@ -190,6 +196,9 @@ class WarehouseRobot:
         self.robot_delta_pos = [math.cos(self.robot_facing_angle)*self.robot_speed,math.sin(self.robot_facing_angle)*self.robot_speed]
 
     def reset(self):
+        if const.MAP:
+            self.generate_map()
+            return None
         if const.IS_RANDOM:
             self.generate_hospital(seed=None)
         if len(self.medicine_pos) == 1:   # Do not reset the robot's position if there is still medicine
@@ -374,7 +383,7 @@ class WarehouseRobot:
         self.alignment = (math.pi - abs(abs(self.robot_facing_angle-c)-math.pi))/math.pi    # How close the agent is to facing the target
         self.inv_dist = 1-self.distance(self.robot_pos[0],self.robot_pos[1],self.medicine_pos[0][0],self.medicine_pos[0][1])/self.distance(self.reset_robot_pos[0],self.reset_robot_pos[1],self.medicine_pos[0][0],self.medicine_pos[0][1])  # How close the agent is to the target
 
-        return (self.robot_grid_pos, self.medicine_pos[0], self.raycast(rays=const.RAYS,fov=const.FOV)) 
+        return (self.robot_grid_pos, self.medicine_pos[0], self.raycast(rays=const.RAYS,fov=const.FOV)[0]) 
 
     def render(self):
 
