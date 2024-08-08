@@ -12,11 +12,11 @@ NUM_TARGETS = 1 # <- currently limited to one target, a higher value will do not
 NUM_MEDICINE = 0
 NUM_WALLS = 5
 SEED = 62    # Seed to determine random numbers
-IS_RANDOM = True   # Set True for randomized layouts every episode, False for same layout
+IS_RANDOM = False   # Set True for randomized layouts every episode, False for same layout
 # MAP = None
 MAP = [     # 1 = Wall 2 = Medicine 3 = Target 4 = Robot
-      [4,0,0,0,0],
-      [0,0,0,2,0],
+      [0,0,0,0,0],
+      [0,0,4,2,0],
       [0,1,0,0,0],
       [1,0,0,1,0],
       [1,0,0,1,3]
