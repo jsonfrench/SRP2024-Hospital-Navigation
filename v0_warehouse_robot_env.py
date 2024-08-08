@@ -30,7 +30,7 @@ class WarehouseRobotEnv(gym.Env):
     # render_fps is not used in our env, but we are require to declare a non-zero value.
     metadata = {"render_modes": ["human"], 'render_fps': const.FPS}
 
-    def __init__(self, grid_rows=const.GRID_ROWS, grid_cols=const.GRID_COLS, render_mode=None):
+    def __init__(self, grid_rows=const.GRID_ROWS if not const.MAP else len(const.MAP), grid_cols=const.GRID_COLS if not const.MAP else len(const.MAP[0]), render_mode=None):
 
         self.grid_rows=grid_rows
         self.grid_cols=grid_cols
